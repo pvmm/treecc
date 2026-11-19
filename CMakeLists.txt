@@ -17,6 +17,7 @@ FetchContent_MakeAvailable(tree_sitter_runtime)
 add_executable(
   treecc-parse
   app/main.cpp
+  modules/lua.cpp
   src/parser.c
   src/scanner.c
 )
@@ -27,8 +28,9 @@ target_include_directories(
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
     "${tree_sitter_runtime_SOURCE_DIR}/lib/include"
+    "${LUA_INCLUDE_DIR}"
 )
-target_link_libraries(treecc-parse PRIVATE tree-sitter)
+target_link_libraries(treecc-parse PRIVATE tree-sitter ${LUA_LIBRARIES})
 if(UNIX AND NOT APPLE)
   target_link_libraries(treecc-parse PRIVATE ${CMAKE_DL_LIBS})
 endif()
@@ -53,9 +55,6 @@ endfunction()
 
 add_treecc_module(treecc_module_sdcc modules/sdcc.cpp "treecc-module-sdcc-bundle-4.2.0")
 add_treecc_module(treecc_module_shell modules/shell.cpp "treecc-module-shell")
-add_treecc_module(treecc_module_lua modules/lua.cpp "treecc-module-lua")
-target_include_directories(treecc_module_lua PRIVATE "${LUA_INCLUDE_DIR}")
-target_link_libraries(treecc_module_lua PRIVATE ${LUA_LIBRARIES})
 configure_file(modules/lua.lua "${CMAKE_CURRENT_BINARY_DIR}/lua.lua" COPYONLY)
 
 include(CTest)

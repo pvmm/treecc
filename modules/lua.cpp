@@ -1,16 +1,10 @@
-#include "treecc/module.h"
+#include "treecc/lua_module.h"
 
 #include <lua.hpp>
 
-#include <dlfcn.h>
-
 #include <cstdint>
-#include <filesystem>
 #include <iostream>
 #include <string>
-
-extern "C" int treecc_module_register_v1(
-    const TreeCCModuleRegistryV1 *registry);
 
 namespace {
 
@@ -150,29 +144,12 @@ bool register_handlers(const TreeCCModuleRegistryV1 *registry) {
   return true;
 }
 
-std::filesystem::path module_script_path() {
-  Dl_info info{};
-  if (dladdr(reinterpret_cast<void *>(&treecc_module_register_v1), &info) == 0 ||
-      info.dli_fname == nullptr) {
-    return {};
-  }
-  return std::filesystem::path(info.dli_fname).parent_path() / "lua.lua";
-}
-
 }  // namespace
 
-extern "C" const char *treecc_module_name_v1(void) { return "lua"; }
-
-extern "C" int treecc_module_register_v1(
-    const TreeCCModuleRegistryV1 *registry) {
+extern "C" int treecc_register_lua_module_v1(
+    const TreeCCModuleRegistryV1 *registry, const char *script_path) {
   if (registry == nullptr || registry->abi_version != TREECC_MODULE_ABI_V1 ||
-      registry->register_command == nullptr) {
-    return 1;
-  }
-
-  const auto script = module_script_path();
-  if (script.empty()) {
-    std::cerr << "lua module: could not locate module directory\n";
+      registry->register_command == nullptr || script_path == nullptr) {
     return 1;
   }
 
@@ -182,16 +159,16 @@ extern "C" int treecc_module_register_v1(
     return 1;
   }
   luaL_openlibs(lua);
-  if (luaL_loadfile(lua, script.c_str()) != LUA_OK ||
+  if (luaL_loadfile(lua, script_path) != LUA_OK ||
       lua_pcall(lua, 0, 1, 0) != LUA_OK) {
-    std::cerr << "lua module: could not load " << script << ": "
+    std::cerr << "lua module: could not load " << script_path << ": "
               << lua_tostring(lua, -1) << '\n';
     lua_close(lua);
     lua = nullptr;
     return 1;
   }
   if (!lua_istable(lua, -1)) {
-    std::cerr << "lua module: " << script
+    std::cerr << "lua module: " << script_path
               << " must return a table of handler functions\n";
     lua_pop(lua, 1);
     lua_close(lua);
@@ -208,4 +185,15 @@ extern "C" int treecc_module_register_v1(
     return 1;
   }
   return 0;
+}
+
+extern "C" void treecc_shutdown_lua_module(void) {
+  if (lua != nullptr) {
+    if (handlers_reference != LUA_NOREF) {
+      luaL_unref(lua, LUA_REGISTRYINDEX, handlers_reference);
+      handlers_reference = LUA_NOREF;
+    }
+    lua_close(lua);
+    lua = nullptr;
+  }
 }

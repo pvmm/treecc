@@ -33,9 +33,9 @@ ctest --test-dir build --output-on-failure
 ```
 
 The build requires the Lua 5.4 development package, fetches the Tree-sitter
-0.25.10 runtime, and builds the `shell`, `sdcc-bundle-4.2.0`, and `lua` modules.
-Pass the recipe (`.rec`) filename first and the definitions (`.def`) filename
-second:
+0.25.10 runtime, and builds the `shell` and `sdcc-bundle-4.2.0` modules. Lua is
+compiled into the app as a built-in module. Pass the recipe (`.rec`) filename
+first and the definitions (`.def`) filename second:
 
 ```sh
 build/treecc-parse sample.rec test/fixtures/functions.def
@@ -49,11 +49,12 @@ paths in `TREECC_MODULE_PATH`. A module is a shared library named
 Registered namespaced commands are dispatched to their module handlers. The
 SDCC module processes the `sdcc::source` context and its ID parameter.
 
-When a recipe's `ruleset` includes `"lua"`, the module loads `lua.lua` beside
-the module library. That script must return a table mapping command names to
-functions. A `lua::greet "TreeCC"` call invokes the `greet` function with a
-node table containing `name`, `args`, source positions, and nested `children`.
-For example:
+When a recipe or definitions file contains a `lua::` command, the app
+automatically initializes the built-in Lua module; no `"lua"` entry is needed
+in `ruleset`. The app loads `lua.lua` beside the executable. That script must
+return a table mapping command names to functions. A `lua::greet "TreeCC"` call
+invokes the `greet` function with a node table containing `name`, `args`,
+source positions, and nested `children`. For example:
 
 ```lua
 return {
@@ -64,7 +65,7 @@ return {
 ```
 
 The starter script is [modules/lua.lua](./modules/lua.lua); CMake copies it
-beside the built module as `lua.lua`.
+beside the executable as `lua.lua`.
 
 The application requires both filenames, checks their extensions, and returns
 a nonzero exit status if a file cannot be read, has syntax errors, or references

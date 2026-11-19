@@ -1,5 +1,6 @@
 #include <tree_sitter/api.h>
 #include "treecc/module.h"
+#include "treecc/lua_module.h"
 
 #include <cstdint>
 #include <cstdlib>
@@ -37,6 +38,10 @@ struct StringDeleter {
 using Parser = std::unique_ptr<TSParser, ParserDeleter>;
 using Tree = std::unique_ptr<TSTree, TreeDeleter>;
 using CStr = std::unique_ptr<char, StringDeleter>;
+
+struct LuaModuleGuard {
+  ~LuaModuleGuard() { treecc_shutdown_lua_module(); }
+};
 
 std::string node_text(TSNode node, const std::string &source) {
   const uint32_t start = ts_node_start_byte(node);
@@ -189,6 +194,17 @@ class ModuleManager {
     return registry_.find(name);
   }
 
+  bool register_builtin_lua(const std::filesystem::path &script_path) {
+    ModuleRegistrationContext context{&registry_};
+    const TreeCCModuleRegistryV1 api{TREECC_MODULE_ABI_V1, &context,
+                                     register_command_callback};
+    if (treecc_register_lua_module_v1(&api, script_path.c_str()) != 0) {
+      return false;
+    }
+    std::cout << "Loaded built-in module: lua\n";
+    return true;
+  }
+
  private:
   static TSNode argument_value(TSNode argument) {
     if (std::string(ts_node_type(argument)) != "argument" ||
@@ -212,7 +228,7 @@ class ModuleManager {
   static void add_module(const std::string &name,
                          std::vector<std::string> &modules,
                          std::unordered_set<std::string> &seen) {
-    if (!name.empty() && seen.insert(name).second) {
+    if (name != "lua" && !name.empty() && seen.insert(name).second) {
       modules.push_back(name);
     }
   }
@@ -374,9 +390,27 @@ bool dispatch_commands(TSNode node, const std::string &source,
   return success;
 }
 
+bool contains_lua_command(TSNode node, const std::string &source) {
+  if (std::string(ts_node_type(node)) == "function_call") {
+    const TSNode function = ts_node_child_by_field_name(node, "function", 8);
+    if (!ts_node_is_null(function) &&
+        node_text(function, source).compare(0, 5, "lua::") == 0) {
+      return true;
+    }
+  }
+
+  for (uint32_t i = 0; i < ts_node_child_count(node); ++i) {
+    if (contains_lua_command(ts_node_child(node, i), source)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 }  // namespace
 
 int main(int argc, char **argv) {
+  LuaModuleGuard lua_module_guard;
   if (argc != 3) {
     std::cerr << "Usage: " << argv[0]
               << " <recipe.rec> <definitions.def>\n";
@@ -428,6 +462,12 @@ int main(int argc, char **argv) {
 
   const TSNode definitions_root =
       ts_tree_root_node(definitions->tree.get());
+  if ((contains_lua_command(recipe_root, recipe->source) ||
+       contains_lua_command(definitions_root, definitions->source)) &&
+      !modules.register_builtin_lua(executable_path.parent_path() / "lua.lua")) {
+    return 1;
+  }
+
   const bool recipe_commands = dispatch_commands(
       recipe_root, recipe->source, modules, recipe->path);
   const bool definition_commands =
