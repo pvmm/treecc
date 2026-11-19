@@ -1,0 +1,59 @@
+project SampleProgram
+target "main.rom"
+
+ruleset {
+	"shell"
+	"sdcc-bundle-4.2.0": sdcc
+}
+
+sdcc::function print {
+	//sdcc::language assembly                       // optional because file type ends in ".asm")
+	sdcc::append-to "./include/stdio.asm"
+	attributes { sdcc::optional }                   // if "sdcc::optional" is set, function usage is verified and may not be included in compilation
+	delimiters [ "---------------" ]
+	contents:
+---------------
+CHPUT = $0x00A2
+
+print_string:
+        ld a, (hl)          ; Load the character at address HL into register A
+        or a                ; Check if A is 0 (faster than 'cp 0')
+        ret z               ; If A == 0 (Zero flag set), end of string reached -> return
+        call CHPUT          ; Print the character in A via MSX BIOS
+        inc hl              ; Move pointer to the next character
+        jr print_string     ; Repeat the loop
+---------------
+}
+
+sdcc::source main {
+	filename "main.c"
+	include-dirs [ "." "./include" ]
+	library-dirs [ "./libs" ]
+	variable $romfile "main.rom"
+
+	delimiters [ "{{" "}}" ]
+	contents {{
+int main(void) {
+	printf("Hello, world!\n");
+loop:
+	goto loop;
+}
+	}}
+
+	attributes: shell::stop-on-error                // opposite: shell::ignore-errors
+}
+
+actions {
+	clean {
+		sdcc::clean
+	}
+	default {
+		sdcc::compile main                      // compile .c into .rel
+		sdcc::link main                         // link all .rel files into .ihx file
+		sdcc::ihx2rom main $main::romfile       // convert .ihx file into .rom file
+	}
+	run {
+		include default
+		sdcc::openmsx -carta $file1::romfile
+	}
+}

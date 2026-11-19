@@ -1,0 +1,19 @@
+{
+  "name": "tree-sitter-treecc",
+  "version": "0.1.0",
+  "description": "Tree-sitter grammar for the TreeCC compiler orchestration language",
+  "scripts": {
+    "generate": "tree-sitter generate",
+    "test": "tree-sitter test && tree-sitter parse sample.rec test/fixtures/functions.def"
+  },
+  "devDependencies": {
+    "tree-sitter-cli": "^0.25.0"
+  },
+  "tree-sitter": [
+    {
+      "scope": "source.treecc",
+      "file-types": ["rec", "def"],
+      "highlights": "queries/highlights.scm"
+    }
+  ]
+}

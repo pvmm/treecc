@@ -1,0 +1,65 @@
+==================
+Prefix call
+==================
+project SampleProgram
+---
+(source_file
+  (function_call
+    function: (identifier)
+    (argument
+      (identifier))))
+
+==================
+Lists and variables
+==================
+compile $source [main extra]
+---
+(source_file
+  (function_call
+    function: (identifier)
+    (argument
+      (variable))
+    (argument
+      (list
+        (argument
+          (identifier))
+        (argument
+          (identifier))))))
+
+==================
+Definition with delimited body
+==================
+fun hello () void {{return}}
+---
+(source_file
+  (function_definition
+    name: (identifier)
+    (parameter_declarations)
+    return_type: (identifier)
+    (blob)))
+
+==================
+Void parameter declaration
+==================
+fun none (void) void {{}}
+---
+(source_file
+  (function_definition
+    name: (identifier)
+    (parameter_declarations)
+    return_type: (identifier)
+    (blob)))
+
+==================
+Continued call
+==================
+compile main,
+  output
+---
+(source_file
+  (function_call
+    function: (identifier)
+    (argument
+      (identifier))
+    (argument
+      (identifier))))

@@ -1,0 +1,3 @@
+infix fun as (string s; id name) tuple {{
+  tuple2 s name
+}}

@@ -1,0 +1,21 @@
+{
+  "grammars": [
+    {
+      "name": "treecc",
+      "camelcase": "TreeCC",
+      "title": "TreeCC",
+      "scope": "source.treecc",
+      "file-types": ["rec", "def"],
+      "injection-regex": "^treecc$"
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "license": "MIT",
+    "description": "Tree-sitter grammar for the TreeCC compiler orchestration language",
+    "authors": [],
+    "links": {
+      "repository": "https://example.invalid/treecc"
+    }
+  }
+}

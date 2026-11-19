@@ -1,0 +1,75 @@
+Consider the list of specs of the TreeCC language and the indentation as contextual information to the itens below:
+* Use Tree-Sitter as a solution;
+* The language has "recipe" mode and "definition" mode;
+    * In recipe mode it can only call functions and declare variables (extension: .rec);
+    * In definition mode, it can also create functions (extension: .def);
+    * a name in the language can have any letter, minus colon, brackets, braces and pareenthesis characters (henceforth called SNAME);
+* A base-level name is always a function;
+    * A function name is SNAME;
+    * A function can be prefix or infix notation and that is defined during its declaration;
+    * A function may declare context ids (internal key/value pairs) that carry meaning and are used like local variables inside a function;
+        * A function name is a SNAME;
+        * A single command can end in a comma and continue on the next line;
+        * A function call can be expressed as a tuple of two: (function-name, list of function parameters)
+            * So you can break line when using function: <newline> argument1, argument2, argument3...
+    * A function can accept 9 types of data in any combination: void, context (curly braces delimited), id, variable, string ("" delimited), special string (""" delimited), number, tuple (parenthesis delimited), list (square-bracket delimited), blob (special delimiter);
+        * parameters are processed in order, from left to right;
+        * A type void forbids any other parameters in a function and is only explicitly named in declaration;
+        * A function without parameters is a function that receives an empty list;
+        * An id is a SNAME and reference a key/value pair by the key;
+        * A context is a bracket delimited area where text behaves as code;
+            * the first word in a line of text is a function call and the remaining words are parameters;
+            * you can put multiple commands in a line if you separate them with a semicolon like this "function1 parameter1_1 parameter1_2; function2 parameter2_1" instead;
+            * In a context, each function call is also a list where the first parameter is a function name and the remaining parameters is another list;
+        * A variable is a general-purpose name that replaces any of the other data types and always starts with "$" in any situation;
+        * A normal string cannot span lines;
+        * A special string can span lines and can include normal quotes;
+        * Normal and special strings can do variable interpolation, but $$ is a special variable that replaces with "$";
+        * A tuple has a fixed size and must be defined in declaration (as in tuple1, tuple2, tuple3...);
+        * A list can have any size;
+        * A list doesn't need commas (they are optional) since lists are space-separated;
+        * A list parameter doesn't need brackets if it's a single element;
+        * A list item can be accessed by its name and index between parenthesis;
+        * A blob is the exact text that goes between the special delimiters without any processing and the delimiters should be previously defined;
+        * Any function parameter can be replaced by a predefined variable;
+* Special case functions:
+    * "project" expects a string and defines the global project name (must be the first function called);
+    * "global" defines a variable (stars with "$") at global level, can be used by any function and use any of the 9 types minus variable;
+    * "actions" defines rule names that are parameters when the tool is invoked, like rules in a Makefile;
+        * each rule can invoke commands defined in a ruleset;
+    * "calc" is a special function that process a math expression and returns a value to be used;
+        * it may contain numeric variables;
+    * "eval" is a special function that executes a blob and may return a value;
+    * "if" is a special function that receives two parameters: a blob as expression and a list of blobs whose first item is executed if expression is true and the second item is executed (if it exists) if condition is false;
+    * "else" is a infix function that returns a list of two blobs;
+    * "set" is a special function that receives a variable name and a value and returns the value itself;
+    * "return" is a special function that returns the list of parameters it receives or an empty list in case of no parameter;
+    * "ruleset" is a special function that receives a list of parameters;
+    * "exists" is a special function that returns true if a variable exists or false otherwise;
+    * "throw" is a special function that stops execution and prints an error on exit;
+    * ":" is a special infix function (the only function with a colon in the name) that returns a 2-tuple of (value, id);
+    * The "fun" function declaration is a function that receives 4 parameters: id, context, return type and blob;
+    * If function return type is not void, the last line of code executed is a return instruction;
+
+Example of common function declarations:
+
+delimiters [ "{{", "}}" ]
+
+fun project (id name) void {{
+	if (exists $global::project-id) {
+		throw file-exists name
+	}
+	set $global::project-id name
+}}
+
+infix fun as (string s; id name) tuple {{
+	tuple2 s name
+}}
+
+fun ruleset (list l) void {{
+	for (item in l) {
+		append $global::ruleset $item
+		exec $item
+	}
+}}
+
