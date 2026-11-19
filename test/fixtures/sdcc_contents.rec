@@ -1,0 +1,26 @@
+project SampleProgram
+target "main.rom"
+
+ruleset {
+  "sdcc-bundle-4.2.0": sdcc
+}
+
+sdcc::function print {
+  // sdcc::language assembly
+  append-to "./include/stdio.asm"
+  attributes { sdcc::optional }
+  delimiters [ "---------------" ]
+  contents:
+---------------
+CHPUT = $0x00A2
+---------------
+}
+
+sdcc::function second {
+  append-to "./extra.asm"
+  delimiters [ "---------------" ]
+  contents:
+---------------
+SECOND_FUNCTION
+---------------
+}

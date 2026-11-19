@@ -71,28 +71,54 @@ end
 
 bootstrap()
 
-local asm_sources = {}
-local delimiters = {}
+local functions = {}
+local current_function
 
-local function append_asm_source(path)
+local function extract_contents(blob_text, delimiters)
+  if #delimiters == 0 then
+    error("contents requires delimiters to be specified first")
+  end
+
+  local opening = delimiters[1]
+  local closing = delimiters[2] or delimiters[1]
+  if opening == "" or closing == "" then
+    error("contents delimiters must not be empty")
+  end
+
+  local opening_start, opening_end = blob_text:find(opening, 1, true)
+  if not opening_start then
+    error("contents blob does not contain its opening delimiter")
+  end
+  local closing_start, closing_end = blob_text:find(closing, opening_end + 1, true)
+  if not closing_start then
+    error("contents blob does not contain its closing delimiter")
+  end
+
+  local value = blob_text:sub(opening_end + 1, closing_start - 1)
+  value = value:gsub("^\r?\n", "", 1)
+  value = value:gsub("\r?\n$", "", 1)
+  return value
+end
+
+local function append_asm_source(function_object, path)
   if not path then
     error("sdcc::append-to requires a path")
   end
-  table.insert(asm_sources, path)
+  table.insert(function_object.append_to, path)
   print("sdcc::append-to: received " .. path)
 end
 
-local function collect_asm_sources(node)
+local function collect_asm_sources(node, function_object)
   if node.type == "function_call" and node.name == "append-to" then
     local path = node.args[1] and node.args[1].value
-    append_asm_source(path)
+    append_asm_source(function_object, path)
   end
   for _, child in ipairs(node.children) do
-    collect_asm_sources(child)
+    collect_asm_sources(child, function_object)
   end
 end
 
-local function collect_delimiters(node)
+local function collect_delimiters(node, function_object)
   if node.type == "function_call" and node.name == "delimiters" then
     local list = node.args[1]
     if not list or list.type ~= "list" then
@@ -107,13 +133,35 @@ local function collect_delimiters(node)
       end
       table.insert(received_delimiters, value.value)
     end
-    delimiters = received_delimiters
+    function_object.delimiters = received_delimiters
     print("sdcc::delimiters: received [" ..
-      table.concat(delimiters, ", ") .. "]")
+      table.concat(function_object.delimiters, ", ") .. "]")
   end
 
   for _, child in ipairs(node.children) do
-    collect_delimiters(child)
+    collect_delimiters(child, function_object)
+  end
+end
+
+local function collect_contents(node, function_object)
+  if node.type == "blob_property" then
+    local blob
+    for _, child in ipairs(node.children) do
+      if child.type == "blob" then
+        blob = child
+        break
+      end
+    end
+    if not blob then
+      error("contents property is missing its blob")
+    end
+    function_object.contents =
+      extract_contents(blob.text, function_object.delimiters)
+    print("sdcc::contents: received " .. function_object.contents)
+  end
+
+  for _, child in ipairs(node.children) do
+    collect_contents(child, function_object)
   end
 end
 
@@ -147,19 +195,34 @@ return {
     if not name then
       error("sdcc::function requires an id")
     end
-    asm_sources = {}
-    delimiters = {}
-    print("sdcc::function: " .. name)
+    local function_object = {
+      name = name,
+      append_to = {},
+      delimiters = {},
+      contents = "",
+    }
     local context = command.args[2]
     if context then
-      collect_asm_sources(context)
-      collect_delimiters(context)
+      collect_asm_sources(context, function_object)
+      collect_delimiters(context, function_object)
+      collect_contents(context, function_object)
     end
+    table.insert(functions, function_object)
+    current_function = function_object
+    local names = {}
+    for _, registered_function in ipairs(functions) do
+      table.insert(names, registered_function.name)
+    end
+    print("sdcc::function: registered " .. name)
+    print("sdcc::functions: registered [" .. table.concat(names, ", ") .. "]")
   end,
 
   ["sdcc::append-to"] = function(command)
     local path = command.args[1] and command.args[1].value
-    append_asm_source(path)
+    if not current_function then
+      error("sdcc::append-to must be inside sdcc::function")
+    end
+    append_asm_source(current_function, path)
   end,
 
   ["sdcc::clean"] = function()

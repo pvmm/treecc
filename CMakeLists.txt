@@ -122,6 +122,28 @@ if(BUILD_TESTING)
       "PATH=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/fake-bin;HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
   )
   add_test(
+    NAME sdcc_contents
+    COMMAND treecc-parse
+      "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/sdcc_contents.rec"
+      "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
+  )
+  set_tests_properties(sdcc_contents PROPERTIES
+    PASS_REGULAR_EXPRESSION "sdcc::contents: received CHPUT ="
+    ENVIRONMENT
+      "PATH=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/fake-bin;HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
+  )
+  add_test(
+    NAME sdcc_multiple_functions
+    COMMAND treecc-parse
+      "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/sdcc_contents.rec"
+      "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
+  )
+  set_tests_properties(sdcc_multiple_functions PROPERTIES
+    PASS_REGULAR_EXPRESSION "sdcc::functions: registered \\[print, second\\]"
+    ENVIRONMENT
+      "PATH=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/fake-bin;HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
+  )
+  add_test(
     NAME sdcc_config_path
     COMMAND "${CMAKE_COMMAND}" -E env "PATH=" "HOME=${TREECC_TEST_HOME}"
       "$<TARGET_FILE:treecc-parse>"

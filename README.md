@@ -77,6 +77,9 @@ return {
 
 The scripts are [modules/lua.lua](./modules/lua.lua) and
 [modules/sdcc.lua](./modules/sdcc.lua); CMake copies them beside the executable.
+Each `sdcc::function` creates a function object containing its name,
+`append-to` paths, delimiters, and extracted contents. These objects are kept
+in the SDCC module's `functions` list.
 
 The application requires both filenames, checks their extensions, and returns
 a nonzero exit status if a file cannot be read, has syntax errors, or references
