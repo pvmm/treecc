@@ -28,7 +28,7 @@ void push_node(lua_State *state, TSNode node, const char *source) {
   const TSPoint start = ts_node_start_point(node);
   const TSPoint end = ts_node_end_point(node);
 
-  lua_createtable(state, 0, 7);
+  lua_createtable(state, 0, 9);
   set_string(state, "type", type);
   set_string(state, "text", raw);
   lua_pushinteger(state, static_cast<lua_Integer>(start.row + 1));
@@ -45,6 +45,26 @@ void push_node(lua_State *state, TSNode node, const char *source) {
   } else if (type == "identifier" || type == "number" ||
              type == "variable") {
     set_string(state, "value", raw);
+  }
+
+  if (type == "function_call") {
+    const TSNode function = ts_node_child_by_field_name(node, "function", 8);
+    if (!ts_node_is_null(function)) {
+      set_string(state, "name", node_text(function, source));
+    }
+
+    lua_createtable(state, static_cast<int>(ts_node_named_child_count(node)), 0);
+    int argument_index = 1;
+    for (uint32_t i = 0; i < ts_node_named_child_count(node); ++i) {
+      const TSNode child = ts_node_named_child(node, i);
+      if (std::string(ts_node_type(child)) != "argument" ||
+          ts_node_named_child_count(child) == 0) {
+        continue;
+      }
+      push_node(state, ts_node_named_child(child, 0), source);
+      lua_rawseti(state, -2, argument_index++);
+    }
+    lua_setfield(state, -2, "args");
   }
 
   lua_createtable(state, static_cast<int>(ts_node_named_child_count(node)), 0);
@@ -78,31 +98,25 @@ void push_command(lua_State *state, TSNode command, const char *source) {
 
 int dispatch_to_lua(TSNode command, const char *source, uint32_t) {
   if (lua == nullptr || handlers_reference == LUA_NOREF) {
-    std::cerr << "lua module: Lua handlers are not initialized\n";
+    std::cerr << "Lua handlers are not initialized\n";
     return 1;
   }
 
   const TSNode function = ts_node_child_by_field_name(command, "function", 8);
   const std::string command_name = node_text(function, source);
-  constexpr char prefix[] = "lua::";
-  if (command_name.compare(0, sizeof(prefix) - 1, prefix) != 0) {
-    std::cerr << "lua module: unexpected command `" << command_name << "`\n";
-    return 1;
-  }
-
   lua_rawgeti(lua, LUA_REGISTRYINDEX, handlers_reference);
-  lua_getfield(lua, -1, command_name.c_str() + sizeof(prefix) - 1);
+  lua_getfield(lua, -1, command_name.c_str());
   lua_remove(lua, -2);
   if (!lua_isfunction(lua, -1)) {
     lua_pop(lua, 1);
-    std::cerr << "lua module: no handler registered for `" << command_name
-              << "`\n";
+    std::cerr << "no Lua handler registered for `" << command_name << "`\n";
     return 1;
   }
 
   push_command(lua, command, source);
   if (lua_pcall(lua, 1, 1, 0) != LUA_OK) {
-    std::cerr << "lua module: " << lua_tostring(lua, -1) << '\n';
+    std::cerr << "Lua handler `" << command_name
+              << "` failed: " << lua_tostring(lua, -1) << '\n';
     lua_pop(lua, 1);
     return 1;
   }
@@ -112,79 +126,90 @@ int dispatch_to_lua(TSNode command, const char *source, uint32_t) {
   return succeeded ? 0 : 1;
 }
 
-bool register_handlers(const TreeCCModuleRegistryV1 *registry) {
-  lua_rawgeti(lua, LUA_REGISTRYINDEX, handlers_reference);
+bool register_handlers(const TreeCCModuleRegistryV1 *registry,
+                       const char *script_path,
+                       const char *default_namespace) {
+  const int initial_top = lua_gettop(lua);
+  if (luaL_loadfile(lua, script_path) != LUA_OK ||
+      lua_pcall(lua, 0, 1, 0) != LUA_OK) {
+    std::cerr << "could not load Lua handlers from " << script_path << ": "
+              << lua_tostring(lua, -1) << '\n';
+    lua_settop(lua, initial_top);
+    return false;
+  }
+  if (!lua_istable(lua, -1)) {
+    std::cerr << script_path << " must return a table of handler functions\n";
+    lua_settop(lua, initial_top);
+    return false;
+  }
+
+  const int script_handlers = lua_gettop(lua);
   lua_pushnil(lua);
-  while (lua_next(lua, -2) != 0) {
+  while (lua_next(lua, script_handlers) != 0) {
     if (lua_type(lua, -2) != LUA_TSTRING || !lua_isfunction(lua, -1)) {
-      std::cerr << "lua module: handlers table must map names to functions\n";
-      lua_pop(lua, 3);
+      std::cerr << script_path << " must map command names to functions\n";
+      lua_settop(lua, initial_top);
       return false;
     }
 
     std::size_t name_length = 0;
     const char *name = lua_tolstring(lua, -2, &name_length);
-    if (name_length == 0 ||
-        std::string(name, name_length).find("::") != std::string::npos) {
-      std::cerr << "lua module: handler names must be nonempty and unqualified\n";
-      lua_pop(lua, 3);
+    if (name_length == 0) {
+      std::cerr << script_path << " contains an empty handler name\n";
+      lua_settop(lua, initial_top);
       return false;
     }
 
-    const std::string command_name = "lua::" + std::string(name, name_length);
+    const std::string handler_name(name, name_length);
+    const std::string command_name =
+        handler_name.find("::") == std::string::npos
+            ? std::string(default_namespace) + "::" + handler_name
+            : handler_name;
     if (registry->register_command(registry->userdata, command_name.c_str(),
                                    dispatch_to_lua) != 0) {
-      std::cerr << "lua module: failed to register `" << command_name << "`\n";
-      lua_pop(lua, 3);
+      std::cerr << "failed to register Lua handler `" << command_name << "`\n";
+      lua_settop(lua, initial_top);
       return false;
     }
+
+    lua_rawgeti(lua, LUA_REGISTRYINDEX, handlers_reference);
+    lua_pushstring(lua, command_name.c_str());
+    lua_pushvalue(lua, -3);
+    lua_settable(lua, -3);
+    lua_pop(lua, 1);
     lua_pop(lua, 1);
   }
-  lua_pop(lua, 1);
+  lua_settop(lua, initial_top);
   return true;
 }
 
 }  // namespace
 
-extern "C" int treecc_register_lua_module_v1(
-    const TreeCCModuleRegistryV1 *registry, const char *script_path) {
-  if (registry == nullptr || registry->abi_version != TREECC_MODULE_ABI_V1 ||
-      registry->register_command == nullptr || script_path == nullptr) {
-    return 1;
+extern "C" int treecc_initialize_lua_module_v1(void) {
+  if (lua != nullptr) {
+    return 0;
   }
-
   lua = luaL_newstate();
   if (lua == nullptr) {
-    std::cerr << "lua module: could not create Lua state\n";
+    std::cerr << "could not create Lua state\n";
     return 1;
   }
   luaL_openlibs(lua);
-  if (luaL_loadfile(lua, script_path) != LUA_OK ||
-      lua_pcall(lua, 0, 1, 0) != LUA_OK) {
-    std::cerr << "lua module: could not load " << script_path << ": "
-              << lua_tostring(lua, -1) << '\n';
-    lua_close(lua);
-    lua = nullptr;
-    return 1;
-  }
-  if (!lua_istable(lua, -1)) {
-    std::cerr << "lua module: " << script_path
-              << " must return a table of handler functions\n";
-    lua_pop(lua, 1);
-    lua_close(lua);
-    lua = nullptr;
-    return 1;
-  }
-
+  lua_newtable(lua);
   handlers_reference = luaL_ref(lua, LUA_REGISTRYINDEX);
-  if (!register_handlers(registry)) {
-    luaL_unref(lua, LUA_REGISTRYINDEX, handlers_reference);
-    handlers_reference = LUA_NOREF;
-    lua_close(lua);
-    lua = nullptr;
+  return 0;
+}
+
+extern "C" int treecc_load_lua_handlers_v1(
+    const TreeCCModuleRegistryV1 *registry, const char *script_path,
+    const char *default_namespace) {
+  if (registry == nullptr || registry->abi_version != TREECC_MODULE_ABI_V1 ||
+      registry->register_command == nullptr || script_path == nullptr ||
+      default_namespace == nullptr || lua == nullptr ||
+      handlers_reference == LUA_NOREF) {
     return 1;
   }
-  return 0;
+  return register_handlers(registry, script_path, default_namespace) ? 0 : 1;
 }
 
 extern "C" void treecc_shutdown_lua_module(void) {

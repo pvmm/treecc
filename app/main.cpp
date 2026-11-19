@@ -163,6 +163,8 @@ class ModuleManager {
                          const std::filesystem::path &executable_path) {
     std::vector<std::string> modules;
     collect_modules(root, source, modules);
+    builtin_lua_requested_ = false;
+    sdcc_module_requested_ = false;
 
     std::vector<std::filesystem::path> search_paths{
         executable_path.parent_path()};
@@ -183,6 +185,14 @@ class ModuleManager {
     }
 
     for (const std::string &module : modules) {
+      if (module == "lua") {
+        builtin_lua_requested_ = true;
+        continue;
+      }
+      if (module == "sdcc-bundle-4.2.0") {
+        sdcc_module_requested_ = true;
+        continue;
+      }
       if (!load_module(module, search_paths)) {
         return false;
       }
@@ -194,14 +204,28 @@ class ModuleManager {
     return registry_.find(name);
   }
 
-  bool register_builtin_lua(const std::filesystem::path &script_path) {
+  bool builtin_lua_requested() const { return builtin_lua_requested_; }
+
+  bool sdcc_module_requested() const { return sdcc_module_requested_; }
+
+  bool initialize_builtin_lua() {
+    if (treecc_initialize_lua_module_v1() != 0) {
+      return false;
+    }
+    return true;
+  }
+
+  bool load_builtin_lua_handlers(const std::filesystem::path &script_path,
+                                 const char *default_namespace) {
     ModuleRegistrationContext context{&registry_};
     const TreeCCModuleRegistryV1 api{TREECC_MODULE_ABI_V1, &context,
                                      register_command_callback};
-    if (treecc_register_lua_module_v1(&api, script_path.c_str()) != 0) {
+    if (treecc_load_lua_handlers_v1(&api, script_path.c_str(),
+                                    default_namespace) != 0) {
       return false;
     }
-    std::cout << "Loaded built-in module: lua\n";
+    std::cout << "Loaded Lua handlers: " << script_path.filename().string()
+              << '\n';
     return true;
   }
 
@@ -228,7 +252,7 @@ class ModuleManager {
   static void add_module(const std::string &name,
                          std::vector<std::string> &modules,
                          std::unordered_set<std::string> &seen) {
-    if (name != "lua" && !name.empty() && seen.insert(name).second) {
+    if (!name.empty() && seen.insert(name).second) {
       modules.push_back(name);
     }
   }
@@ -357,6 +381,8 @@ class ModuleManager {
 
   CommandRegistry registry_;
   std::vector<void *> handles_;
+  bool builtin_lua_requested_ = false;
+  bool sdcc_module_requested_ = false;
 };
 
 bool dispatch_commands(TSNode node, const std::string &source,
@@ -390,17 +416,20 @@ bool dispatch_commands(TSNode node, const std::string &source,
   return success;
 }
 
-bool contains_lua_command(TSNode node, const std::string &source) {
+bool contains_command_prefix(TSNode node, const std::string &source,
+                             const std::string &prefix) {
   if (std::string(ts_node_type(node)) == "function_call") {
     const TSNode function = ts_node_child_by_field_name(node, "function", 8);
-    if (!ts_node_is_null(function) &&
-        node_text(function, source).compare(0, 5, "lua::") == 0) {
-      return true;
+    if (!ts_node_is_null(function)) {
+      const std::string name = node_text(function, source);
+      if (name.compare(0, prefix.size(), prefix) == 0) {
+        return true;
+      }
     }
   }
 
   for (uint32_t i = 0; i < ts_node_child_count(node); ++i) {
-    if (contains_lua_command(ts_node_child(node, i), source)) {
+    if (contains_command_prefix(ts_node_child(node, i), source, prefix)) {
       return true;
     }
   }
@@ -462,9 +491,24 @@ int main(int argc, char **argv) {
 
   const TSNode definitions_root =
       ts_tree_root_node(definitions->tree.get());
-  if ((contains_lua_command(recipe_root, recipe->source) ||
-       contains_lua_command(definitions_root, definitions->source)) &&
-      !modules.register_builtin_lua(executable_path.parent_path() / "lua.lua")) {
+  const bool lua_handlers_requested =
+      modules.builtin_lua_requested() ||
+      contains_command_prefix(recipe_root, recipe->source, "lua::") ||
+      contains_command_prefix(definitions_root, definitions->source, "lua::");
+  if ((lua_handlers_requested || modules.sdcc_module_requested()) &&
+      !modules.initialize_builtin_lua()) {
+    return 1;
+  }
+  if (lua_handlers_requested &&
+      !modules.load_builtin_lua_handlers(executable_path.parent_path() /
+                                             "lua.lua",
+                                         "lua")) {
+    return 1;
+  }
+  if (modules.sdcc_module_requested() &&
+      !modules.load_builtin_lua_handlers(executable_path.parent_path() /
+                                             "sdcc.lua",
+                                         "sdcc")) {
     return 1;
   }
 

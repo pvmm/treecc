@@ -53,17 +53,29 @@ function(add_treecc_module target source output_name)
   )
 endfunction()
 
-add_treecc_module(treecc_module_sdcc modules/sdcc.cpp "treecc-module-sdcc-bundle-4.2.0")
 add_treecc_module(treecc_module_shell modules/shell.cpp "treecc-module-shell")
 configure_file(modules/lua.lua "${CMAKE_CURRENT_BINARY_DIR}/lua.lua" COPYONLY)
+configure_file(modules/sdcc.lua "${CMAKE_CURRENT_BINARY_DIR}/sdcc.lua" COPYONLY)
 
 include(CTest)
 if(BUILD_TESTING)
+  set(TREECC_TEST_HOME "${CMAKE_CURRENT_BINARY_DIR}/test-home")
+  file(MAKE_DIRECTORY "${TREECC_TEST_HOME}/.config")
+  configure_file(
+    test/fixtures/treecc.conf.in
+    "${TREECC_TEST_HOME}/.config/treecc"
+    @ONLY
+  )
+
   add_test(
     NAME parse_examples
     COMMAND treecc-parse
       "${CMAKE_CURRENT_SOURCE_DIR}/sample.rec"
       "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
+  )
+  set_tests_properties(parse_examples PROPERTIES
+    ENVIRONMENT
+      "PATH=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/fake-bin;HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
   )
   add_test(
     NAME sdcc_source_context
@@ -73,6 +85,8 @@ if(BUILD_TESTING)
   )
   set_tests_properties(sdcc_source_context PROPERTIES
     PASS_REGULAR_EXPRESSION "sdcc::source: mymain"
+    ENVIRONMENT
+      "PATH=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/fake-bin;HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
   )
   add_test(
     NAME sdcc_source_filename
@@ -82,6 +96,29 @@ if(BUILD_TESTING)
   )
   set_tests_properties(sdcc_source_filename PROPERTIES
     PASS_REGULAR_EXPRESSION "source filename: main.c"
+    ENVIRONMENT
+      "PATH=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/fake-bin;HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
+  )
+  add_test(
+    NAME sdcc_config_path
+    COMMAND "${CMAKE_COMMAND}" -E env "PATH=" "HOME=${TREECC_TEST_HOME}"
+      "$<TARGET_FILE:treecc-parse>"
+      "${CMAKE_CURRENT_SOURCE_DIR}/sample.rec"
+      "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
+  )
+  set_tests_properties(sdcc_config_path PROPERTIES
+    PASS_REGULAR_EXPRESSION "sdcc::source: mymain"
+  )
+  add_test(
+    NAME sdcc_missing_from_path
+    COMMAND "${CMAKE_COMMAND}" -E env "PATH="
+      "$<TARGET_FILE:treecc-parse>"
+      "${CMAKE_CURRENT_SOURCE_DIR}/sample.rec"
+      "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
+  )
+  set_tests_properties(sdcc_missing_from_path PROPERTIES
+    WILL_FAIL TRUE
+    ENVIRONMENT "HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
   )
   add_test(
     NAME lua_node_handler
