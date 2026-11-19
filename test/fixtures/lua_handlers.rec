@@ -1,0 +1,5 @@
+ruleset {
+  "lua"
+}
+
+lua::greet "TreeCC"
