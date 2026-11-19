@@ -56,7 +56,8 @@ void tree_sitter_treecc_external_scanner_deserialize(void *payload, const char *
 
 static bool scan_blob_start(Scanner *scanner, TSLexer *lexer) {
   while (lexer->lookahead == ' ' || lexer->lookahead == '\t' ||
-         lexer->lookahead == '\r' || lexer->lookahead == '\n') {
+         lexer->lookahead == '\r' || lexer->lookahead == '\n' ||
+         lexer->lookahead == ':') {
     lexer->advance(lexer, true);
   }
 
