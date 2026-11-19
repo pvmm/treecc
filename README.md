@@ -32,13 +32,14 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-The build fetches the Tree-sitter 0.25.10 runtime. Run `build/treecc-parse` to
-parse the included `sample.rec` and `test/fixtures/functions.def` files and
-print their syntax trees. Pass one or more paths to parse other files:
+The build fetches the Tree-sitter 0.25.10 runtime. Pass the recipe (`.rec`)
+filename first and the definitions (`.def`) filename second. The app prints
+their syntax trees:
 
 ```sh
-build/treecc-parse path/to/recipe.rec path/to/functions.def
+build/treecc-parse sample.rec test/fixtures/functions.def
 ```
 
-The application returns a nonzero exit status if a file cannot be read or has
-syntax errors. Parsing does not execute compiler actions.
+The application requires both filenames, checks their extensions, and returns
+a nonzero exit status if a file cannot be read or has syntax errors. Parsing
+does not execute compiler actions.

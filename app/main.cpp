@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -9,7 +10,6 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
-#include <vector>
 
 extern "C" const TSLanguage *tree_sitter_treecc();
 
@@ -156,6 +156,24 @@ bool parse_file(TSParser *parser, const std::string &path) {
 }  // namespace
 
 int main(int argc, char **argv) {
+  if (argc != 3) {
+    std::cerr << "Usage: " << argv[0]
+              << " <recipe.rec> <definitions.def>\n";
+    return 2;
+  }
+
+  const std::string recipe_path = argv[1];
+  const std::string definitions_path = argv[2];
+  if (std::filesystem::path(recipe_path).extension() != ".rec") {
+    std::cerr << "recipe file must have a .rec extension: " << recipe_path << '\n';
+    return 2;
+  }
+  if (std::filesystem::path(definitions_path).extension() != ".def") {
+    std::cerr << "definitions file must have a .def extension: "
+              << definitions_path << '\n';
+    return 2;
+  }
+
   Parser parser(ts_parser_new());
   if (!parser) {
     std::cerr << "could not create Tree-sitter parser\n";
@@ -166,20 +184,7 @@ int main(int argc, char **argv) {
     return 2;
   }
 
-  std::vector<std::string> paths;
-  if (argc > 1) {
-    for (int i = 1; i < argc; ++i) {
-      paths.emplace_back(argv[i]);
-    }
-  } else {
-    paths.emplace_back(std::string(TREECC_SOURCE_DIR) + "/sample.rec");
-    paths.emplace_back(std::string(TREECC_SOURCE_DIR) +
-                       "/test/fixtures/functions.def");
-  }
-
-  bool success = true;
-  for (const std::string &path : paths) {
-    success = parse_file(parser.get(), path) && success;
-  }
-  return success ? 0 : 1;
+  const bool recipe_success = parse_file(parser.get(), recipe_path);
+  const bool definitions_success = parse_file(parser.get(), definitions_path);
+  return recipe_success && definitions_success ? 0 : 1;
 }

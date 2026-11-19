@@ -26,14 +26,15 @@ target_include_directories(
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
     "${tree_sitter_runtime_SOURCE_DIR}/lib/include"
 )
-target_compile_definitions(
-  treecc-parse
-  PRIVATE TREECC_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
-)
 target_link_libraries(treecc-parse PRIVATE tree-sitter)
 
 include(CTest)
 if(BUILD_TESTING)
-  add_test(NAME parse_examples COMMAND treecc-parse)
+  add_test(
+    NAME parse_examples
+    COMMAND treecc-parse
+      "${CMAKE_CURRENT_SOURCE_DIR}/sample.rec"
+      "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
+  )
   set_tests_properties(parse_examples PROPERTIES PASS_REGULAR_EXPRESSION "source filename: main.c")
 endif()
