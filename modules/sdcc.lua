@@ -71,6 +71,52 @@ end
 
 bootstrap()
 
+local asm_sources = {}
+local delimiters = {}
+
+local function append_asm_source(path)
+  if not path then
+    error("sdcc::append-to requires a path")
+  end
+  table.insert(asm_sources, path)
+  print("sdcc::append-to: received " .. path)
+end
+
+local function collect_asm_sources(node)
+  if node.type == "function_call" and node.name == "append-to" then
+    local path = node.args[1] and node.args[1].value
+    append_asm_source(path)
+  end
+  for _, child in ipairs(node.children) do
+    collect_asm_sources(child)
+  end
+end
+
+local function collect_delimiters(node)
+  if node.type == "function_call" and node.name == "delimiters" then
+    local list = node.args[1]
+    if not list or list.type ~= "list" then
+      error("delimiters requires a list")
+    end
+
+    local received_delimiters = {}
+    for _, argument in ipairs(list.children) do
+      local value = argument.children[1]
+      if not value or value.type ~= "string" then
+        error("delimiters entries must be strings")
+      end
+      table.insert(received_delimiters, value.value)
+    end
+    delimiters = received_delimiters
+    print("sdcc::delimiters: received [" ..
+      table.concat(delimiters, ", ") .. "]")
+  end
+
+  for _, child in ipairs(node.children) do
+    collect_delimiters(child)
+  end
+end
+
 return {
   source = function(command)
     local context_id = command.args[1] and command.args[1].value
@@ -101,11 +147,19 @@ return {
     if not name then
       error("sdcc::function requires an id")
     end
+    asm_sources = {}
+    delimiters = {}
     print("sdcc::function: " .. name)
+    local context = command.args[2]
+    if context then
+      collect_asm_sources(context)
+      collect_delimiters(context)
+    end
   end,
 
-  ["sdcc::append-to"] = function()
-    print("sdcc::append-to: recognized")
+  ["sdcc::append-to"] = function(command)
+    local path = command.args[1] and command.args[1].value
+    append_asm_source(path)
   end,
 
   ["sdcc::clean"] = function()

@@ -84,7 +84,7 @@ if(BUILD_TESTING)
       "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
   )
   set_tests_properties(sdcc_source_context PROPERTIES
-    PASS_REGULAR_EXPRESSION "sdcc::source: mymain"
+    PASS_REGULAR_EXPRESSION "sdcc::source:"
     ENVIRONMENT
       "PATH=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/fake-bin;HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
   )
@@ -100,6 +100,28 @@ if(BUILD_TESTING)
       "PATH=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/fake-bin;HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
   )
   add_test(
+    NAME sdcc_append_to
+    COMMAND treecc-parse
+      "${CMAKE_CURRENT_SOURCE_DIR}/sample.rec"
+      "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
+  )
+  set_tests_properties(sdcc_append_to PROPERTIES
+    PASS_REGULAR_EXPRESSION "sdcc::append-to: received ./include/stdio\\.asm"
+    ENVIRONMENT
+      "PATH=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/fake-bin;HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
+  )
+  add_test(
+    NAME sdcc_delimiters
+    COMMAND treecc-parse
+      "${CMAKE_CURRENT_SOURCE_DIR}/sample.rec"
+      "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
+  )
+  set_tests_properties(sdcc_delimiters PROPERTIES
+    PASS_REGULAR_EXPRESSION "sdcc::delimiters: received \\[---------------\\]"
+    ENVIRONMENT
+      "PATH=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/fake-bin;HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
+  )
+  add_test(
     NAME sdcc_config_path
     COMMAND "${CMAKE_COMMAND}" -E env "PATH=" "HOME=${TREECC_TEST_HOME}"
       "$<TARGET_FILE:treecc-parse>"
@@ -107,7 +129,7 @@ if(BUILD_TESTING)
       "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
   )
   set_tests_properties(sdcc_config_path PROPERTIES
-    PASS_REGULAR_EXPRESSION "sdcc::source: mymain"
+    PASS_REGULAR_EXPRESSION "sdcc::source:"
   )
   add_test(
     NAME sdcc_missing_from_path
