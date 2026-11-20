@@ -144,6 +144,17 @@ if(BUILD_TESTING)
       "PATH=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/fake-bin;HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
   )
   add_test(
+    NAME sdcc_debug_interpolation
+    COMMAND "$<TARGET_FILE:treecc>"
+      "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/sdcc_debug.rec"
+      "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
+  )
+  set_tests_properties(sdcc_debug_interpolation PROPERTIES
+    PASS_REGULAR_EXPRESSION "Hello, Pedro!"
+    ENVIRONMENT
+      "PATH=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/fake-bin;HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
+  )
+  add_test(
     NAME sdcc_config_path
     COMMAND "${CMAKE_COMMAND}" -E env "PATH=" "HOME=${TREECC_TEST_HOME}"
       "$<TARGET_FILE:treecc>"

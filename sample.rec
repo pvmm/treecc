@@ -11,6 +11,8 @@ sdcc::function print {
 	append-to "./include/stdio.asm"
 	attributes { sdcc::optional }                   // if "sdcc::optional" is set, function usage is verified and may not be included in compilation
 	delimiters [ "---------------" ]
+	variable $name "Pedro"
+	debug "Hello, $name!"
 	contents:
 ---------------
 CHPUT = $0x00A2

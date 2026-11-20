@@ -72,7 +72,51 @@ end
 bootstrap()
 
 local functions = {}
+local variables = {}
 local current_function
+
+local function interpolate(value)
+  return (value:gsub("%$[%w_]+", function(variable)
+    local replacement = variables[variable]
+    if replacement == nil then
+      error("undefined variable `" .. variable .. "`")
+    end
+    return replacement
+  end))
+end
+
+local function process_context(node)
+  if node.type == "string" and node.value then
+    node.value = interpolate(node.value)
+  end
+
+  if node.type == "function_call" then
+    for _, argument in ipairs(node.args) do
+      process_context(argument)
+    end
+
+    if node.name == "variable" then
+      local variable = node.args[1]
+      local value = node.args[2]
+      if not variable or variable.type ~= "variable" or not variable.value or
+          not value or not value.value then
+        error("variable requires a variable name and a value")
+      end
+      variables[variable.value] = tostring(value.value)
+    elseif node.name == "debug" then
+      local message = node.args[1]
+      if not message or message.type ~= "string" or not message.value then
+        error("debug requires a string")
+      end
+      io.stderr:write("debug: ", message.value, "\n")
+    end
+    return
+  end
+
+  for _, child in ipairs(node.children) do
+    process_context(child)
+  end
+end
 
 local function extract_contents(blob_text, delimiters)
   if #delimiters == 0 then
@@ -203,6 +247,7 @@ return {
     }
     local context = command.args[2]
     if context then
+      process_context(context)
       collect_asm_sources(context, function_object)
       collect_delimiters(context, function_object)
       collect_contents(context, function_object)
