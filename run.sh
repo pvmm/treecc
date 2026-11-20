@@ -1,2 +1,2 @@
 #!/bin/sh
-./build/treecc-parse ./sample.rec ./functions.def
+./build/treecc ./sample.rec ./functions.def

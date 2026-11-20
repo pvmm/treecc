@@ -15,24 +15,24 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(tree_sitter_runtime)
 
 add_executable(
-  treecc-parse
+  treecc
   app/main.cpp
   modules/lua.cpp
   src/parser.c
   src/scanner.c
 )
-target_compile_features(treecc-parse PRIVATE cxx_std_17)
+target_compile_features(treecc PRIVATE cxx_std_17)
 target_include_directories(
-  treecc-parse
+  treecc
   PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
     "${tree_sitter_runtime_SOURCE_DIR}/lib/include"
     "${LUA_INCLUDE_DIR}"
 )
-target_link_libraries(treecc-parse PRIVATE tree-sitter ${LUA_LIBRARIES})
+target_link_libraries(treecc PRIVATE tree-sitter ${LUA_LIBRARIES})
 if(UNIX AND NOT APPLE)
-  target_link_libraries(treecc-parse PRIVATE ${CMAKE_DL_LIBS})
+  target_link_libraries(treecc PRIVATE ${CMAKE_DL_LIBS})
 endif()
 
 function(add_treecc_module target source output_name)
@@ -69,7 +69,7 @@ if(BUILD_TESTING)
 
   add_test(
     NAME parse_examples
-    COMMAND treecc-parse
+    COMMAND "$<TARGET_FILE:treecc>"
       "${CMAKE_CURRENT_SOURCE_DIR}/sample.rec"
       "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
   )
@@ -79,7 +79,7 @@ if(BUILD_TESTING)
   )
   add_test(
     NAME sdcc_source_context
-    COMMAND treecc-parse
+    COMMAND "$<TARGET_FILE:treecc>"
       "${CMAKE_CURRENT_SOURCE_DIR}/sample.rec"
       "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
   )
@@ -90,7 +90,7 @@ if(BUILD_TESTING)
   )
   add_test(
     NAME sdcc_source_filename
-    COMMAND treecc-parse
+    COMMAND "$<TARGET_FILE:treecc>"
       "${CMAKE_CURRENT_SOURCE_DIR}/sample.rec"
       "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
   )
@@ -101,7 +101,7 @@ if(BUILD_TESTING)
   )
   add_test(
     NAME sdcc_append_to
-    COMMAND treecc-parse
+    COMMAND "$<TARGET_FILE:treecc>"
       "${CMAKE_CURRENT_SOURCE_DIR}/sample.rec"
       "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
   )
@@ -112,7 +112,7 @@ if(BUILD_TESTING)
   )
   add_test(
     NAME sdcc_delimiters
-    COMMAND treecc-parse
+    COMMAND "$<TARGET_FILE:treecc>"
       "${CMAKE_CURRENT_SOURCE_DIR}/sample.rec"
       "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
   )
@@ -123,7 +123,7 @@ if(BUILD_TESTING)
   )
   add_test(
     NAME sdcc_contents
-    COMMAND treecc-parse
+    COMMAND "$<TARGET_FILE:treecc>"
       "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/sdcc_contents.rec"
       "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
   )
@@ -134,7 +134,7 @@ if(BUILD_TESTING)
   )
   add_test(
     NAME sdcc_multiple_functions
-    COMMAND treecc-parse
+    COMMAND "$<TARGET_FILE:treecc>"
       "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/sdcc_contents.rec"
       "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
   )
@@ -146,7 +146,7 @@ if(BUILD_TESTING)
   add_test(
     NAME sdcc_config_path
     COMMAND "${CMAKE_COMMAND}" -E env "PATH=" "HOME=${TREECC_TEST_HOME}"
-      "$<TARGET_FILE:treecc-parse>"
+      "$<TARGET_FILE:treecc>"
       "${CMAKE_CURRENT_SOURCE_DIR}/sample.rec"
       "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
   )
@@ -156,7 +156,7 @@ if(BUILD_TESTING)
   add_test(
     NAME sdcc_missing_from_path
     COMMAND "${CMAKE_COMMAND}" -E env "PATH="
-      "$<TARGET_FILE:treecc-parse>"
+      "$<TARGET_FILE:treecc>"
       "${CMAKE_CURRENT_SOURCE_DIR}/sample.rec"
       "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
   )
@@ -166,7 +166,7 @@ if(BUILD_TESTING)
   )
   add_test(
     NAME lua_node_handler
-    COMMAND treecc-parse
+    COMMAND "$<TARGET_FILE:treecc>"
       "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/lua_handlers.rec"
       "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
   )
