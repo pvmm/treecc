@@ -3,6 +3,7 @@
 #include <lua.hpp>
 
 #include <cstdint>
+#include <filesystem>
 #include <iostream>
 #include <string>
 
@@ -10,6 +11,24 @@ namespace {
 
 lua_State *lua = nullptr;
 int handlers_reference = LUA_NOREF;
+
+int create_parent_directories(lua_State *state) {
+  std::size_t path_length = 0;
+  const char *path = luaL_checklstring(state, 1, &path_length);
+  const std::filesystem::path parent =
+      std::filesystem::path(std::string(path, path_length)).parent_path();
+  std::error_code error;
+  if (!parent.empty()) {
+    std::filesystem::create_directories(parent, error);
+  }
+  if (error) {
+    lua_pushnil(state);
+    lua_pushstring(state, error.message().c_str());
+    return 2;
+  }
+  lua_pushboolean(state, true);
+  return 1;
+}
 
 std::string node_text(TSNode node, const char *source) {
   const uint32_t start = ts_node_start_byte(node);
@@ -195,6 +214,10 @@ extern "C" int treecc_initialize_lua_module_v1(void) {
     return 1;
   }
   luaL_openlibs(lua);
+  lua_newtable(lua);
+  lua_pushcfunction(lua, create_parent_directories);
+  lua_setfield(lua, -2, "create_parent_directories");
+  lua_setglobal(lua, "treecc");
   lua_newtable(lua);
   handlers_reference = luaL_ref(lua, LUA_REGISTRYINDEX);
   return 0;

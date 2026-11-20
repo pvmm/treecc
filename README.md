@@ -59,7 +59,8 @@ The SDCC module recognizes `.OPTIONAL` and `.SIZE` in a function's `attributes`
 list and stores the enabled flags in that function's `current_attributes` list.
 An empty list leaves no flags enabled.
 Each `append-to` path is opened in append mode and receives the function's
-extracted contents, creating the file if it does not already exist.
+extracted contents, creating any missing parent directories and the file if
+they do not already exist.
 
 ## Tree-sitter
 

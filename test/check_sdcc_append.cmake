@@ -5,10 +5,11 @@ if(NOT DEFINED TREECC_EXECUTABLE OR NOT DEFINED RECIPE OR
 endif()
 
 file(MAKE_DIRECTORY "${WORKING_DIRECTORY}")
-set(output_file "${WORKING_DIRECTORY}/output.asm")
+set(output_file "${WORKING_DIRECTORY}/nested/include/output.asm")
 if(TEST_MODE STREQUAL "create")
-  file(REMOVE "${output_file}")
+  file(REMOVE_RECURSE "${WORKING_DIRECTORY}/nested")
 elseif(TEST_MODE STREQUAL "append")
+  file(MAKE_DIRECTORY "${WORKING_DIRECTORY}/nested/include")
   file(WRITE "${output_file}" "existing\n")
 else()
   message(FATAL_ERROR "Unknown SDCC append test mode: ${TEST_MODE}")

@@ -5,7 +5,7 @@ ruleset {
 }
 
 sdcc::function example {
-  append-to "output.asm"
+  append-to "nested/include/output.asm"
   delimiters [ "---------------" ]
   contents:
 ---------------

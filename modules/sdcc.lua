@@ -242,11 +242,22 @@ local function collect_contents(node, function_object)
 end
 
 local function write_asm_source(function_object, path)
+  local directories_created, directory_error =
+    treecc.create_parent_directories(path)
+  if not directories_created then
+    error("could not create parent directories for `" .. path .. "`: " ..
+      directory_error)
+  end
+
   local output, open_error = io.open(path, "ab")
   if not output then
     error("could not open `" .. path .. "` for appending: " .. open_error)
   end
-  output:write(function_object.contents)
+  local written, write_error = output:write(function_object.contents)
+  if not written then
+    output:close()
+    error("could not write to `" .. path .. "`: " .. write_error)
+  end
   local closed, close_error = output:close()
   if not closed then
     error("could not finish writing `" .. path .. "`: " .. close_error)
