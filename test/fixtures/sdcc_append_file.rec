@@ -10,6 +10,6 @@ sdcc::function example {
   delimiters [ "---------------" ]
   contents:
 ---------------
-PAYLOAD
+PAYLOAD = $sdcc::function / ${sdcc::function}
 ---------------
 }

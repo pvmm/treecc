@@ -63,6 +63,8 @@ extracted contents, creating any missing parent directories and the file if
 they do not already exist.
 When `.OPTIONAL` is enabled, the contents are enclosed in `.ifdef _USED_FUNCTION_NAME_`
 and `.endif`, where `FUNCTION_NAME` is the uppercase function name.
+Within SDCC function contents, `$sdcc::function` and `${sdcc::function}` both
+interpolate to the current function name.
 
 ## Tree-sitter
 

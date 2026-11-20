@@ -79,14 +79,52 @@ local attributes = {
 }
 local current_function
 
-local function interpolate(value)
-  return (value:gsub("%$[%w_]+", function(variable)
-    local replacement = variables[variable]
-    if replacement == nil then
-      error("undefined variable `" .. variable .. "`")
+local function interpolate(value, preserve_undefined)
+  local result = {}
+  local cursor = 1
+  while cursor <= #value do
+    local dollar = value:find("$", cursor, true)
+    if not dollar then
+      table.insert(result, value:sub(cursor))
+      break
     end
-    return replacement
-  end))
+    table.insert(result, value:sub(cursor, dollar - 1))
+
+    if value:sub(dollar + 1, dollar + 1) == "$" then
+      table.insert(result, "$$")
+      cursor = dollar + 2
+    else
+      local braced = value:sub(dollar + 1, dollar + 1) == "{"
+      local name_start = dollar + (braced and 2 or 1)
+      local name_end = name_start
+      while name_end <= #value and value:sub(name_end, name_end):match("[%w_:]") do
+        name_end = name_end + 1
+      end
+      local name = value:sub(name_start, name_end - 1)
+      local close_brace = braced and value:sub(name_end, name_end) == "}"
+      if name ~= "" and (not braced or close_brace) then
+        local variable_name = name:gsub(":+$", "")
+        local trailing_colons = name:sub(#variable_name + 1)
+        local replacement = variables["$" .. variable_name]
+        if replacement == nil then
+          if not preserve_undefined then
+            error("undefined variable `$" .. variable_name .. "`")
+          end
+          table.insert(result, value:sub(dollar, name_end - 1))
+          if close_brace then
+            table.insert(result, "}")
+          end
+        else
+          table.insert(result, replacement .. trailing_colons)
+        end
+        cursor = name_end + (close_brace and 1 or 0)
+      else
+        table.insert(result, "$")
+        cursor = dollar + 1
+      end
+    end
+  end
+  return table.concat(result)
 end
 
 local function process_context(node)
@@ -232,6 +270,7 @@ local function collect_contents(node, function_object)
     end
     function_object.contents =
       extract_contents(blob.text, function_object.delimiters)
+    function_object.contents = interpolate(function_object.contents, true)
     for _, attribute in ipairs(function_object.current_attributes) do
       if attribute == ".OPTIONAL" then
         local contents = function_object.contents
@@ -314,13 +353,22 @@ return {
     }
     local context = command.args[2]
     if context then
-      process_context(context)
-      collect_asm_sources(context, function_object)
-      collect_attributes(context, function_object)
-      collect_delimiters(context, function_object)
-      collect_contents(context, function_object)
-      for _, path in ipairs(function_object.append_to) do
-        write_asm_source(function_object, path)
+      local variable_name = "$sdcc::function"
+      local previous_value = variables[variable_name]
+      variables[variable_name] = name
+      local succeeded, failure = pcall(function()
+        process_context(context)
+        collect_asm_sources(context, function_object)
+        collect_attributes(context, function_object)
+        collect_delimiters(context, function_object)
+        collect_contents(context, function_object)
+        for _, path in ipairs(function_object.append_to) do
+          write_asm_source(function_object, path)
+        end
+      end)
+      variables[variable_name] = previous_value
+      if not succeeded then
+        error(failure, 0)
       end
     end
     table.insert(functions, function_object)
