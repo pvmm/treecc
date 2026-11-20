@@ -148,7 +148,7 @@ if(BUILD_TESTING)
       "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
   )
   set_tests_properties(sdcc_contents PROPERTIES
-    PASS_REGULAR_EXPRESSION "sdcc::contents: received CHPUT ="
+    PASS_REGULAR_EXPRESSION "sdcc::contents: received \\.ifdef _USED_PRINT_"
     ENVIRONMENT
       "PATH=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/fake-bin;HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
   )

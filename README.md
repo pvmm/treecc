@@ -61,6 +61,8 @@ An empty list leaves no flags enabled.
 Each `append-to` path is opened in append mode and receives the function's
 extracted contents, creating any missing parent directories and the file if
 they do not already exist.
+When `.OPTIONAL` is enabled, the contents are enclosed in `.ifdef _USED_FUNCTION_NAME_`
+and `.endif`, where `FUNCTION_NAME` is the uppercase function name.
 
 ## Tree-sitter
 

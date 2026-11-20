@@ -232,6 +232,18 @@ local function collect_contents(node, function_object)
     end
     function_object.contents =
       extract_contents(blob.text, function_object.delimiters)
+    for _, attribute in ipairs(function_object.current_attributes) do
+      if attribute == ".OPTIONAL" then
+        local contents = function_object.contents
+        if contents ~= "" and contents:sub(-1) ~= "\n" then
+          contents = contents .. "\n"
+        end
+        function_object.contents =
+          ".ifdef _USED_" .. function_object.name:upper() .. "_\n" ..
+          contents .. ".endif\n"
+        break
+      end
+    end
     print("sdcc::contents: received " .. function_object.contents)
   end
 
