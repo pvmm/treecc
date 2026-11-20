@@ -55,6 +55,10 @@ Lua is embedded in the application. Lua command handlers are loaded from
 `sdcc.lua`. Each script returns a table of handler functions, which receive
 the parsed command as a Lua node table.
 
+The SDCC module recognizes `.OPTIONAL` and `.SIZE` in a function's `attributes`
+list and stores the enabled flags in that function's `current_attributes` list.
+An empty list leaves no flags enabled.
+
 ## Tree-sitter
 
 Tree-sitter provides the syntax parser used by TreeCC. The grammar is defined

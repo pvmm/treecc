@@ -8,7 +8,7 @@ ruleset {
 sdcc::function print {
   // sdcc::language assembly
   append-to "./include/stdio.asm"
-  attributes { sdcc::optional }
+  attributes [ .OPTIONAL ]
   delimiters [ "---------------" ]
   contents:
 ---------------

@@ -155,6 +155,28 @@ if(BUILD_TESTING)
       "PATH=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/fake-bin;HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
   )
   add_test(
+    NAME sdcc_attributes
+    COMMAND "$<TARGET_FILE:treecc>"
+      "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/sdcc_attributes.rec"
+      "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
+  )
+  set_tests_properties(sdcc_attributes PROPERTIES
+    PASS_REGULAR_EXPRESSION "sdcc::current_attributes: \\[\\.OPTIONAL, \\.SIZE\\]"
+    ENVIRONMENT
+      "PATH=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/fake-bin;HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
+  )
+  add_test(
+    NAME sdcc_empty_attributes
+    COMMAND "$<TARGET_FILE:treecc>"
+      "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/sdcc_attributes.rec"
+      "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
+  )
+  set_tests_properties(sdcc_empty_attributes PROPERTIES
+    PASS_REGULAR_EXPRESSION "sdcc::current_attributes: \\[\\]"
+    ENVIRONMENT
+      "PATH=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/fake-bin;HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
+  )
+  add_test(
     NAME sdcc_config_path
     COMMAND "${CMAKE_COMMAND}" -E env "PATH=" "HOME=${TREECC_TEST_HOME}"
       "$<TARGET_FILE:treecc>"

@@ -73,6 +73,10 @@ bootstrap()
 
 local functions = {}
 local variables = {}
+local attributes = {
+  [".OPTIONAL"] = true,
+  [".SIZE"] = true,
+}
 local current_function
 
 local function interpolate(value)
@@ -115,6 +119,34 @@ local function process_context(node)
 
   for _, child in ipairs(node.children) do
     process_context(child)
+  end
+end
+
+local function collect_attributes(node, function_object)
+  if node.type == "function_call" and node.name == "attributes" then
+    local list = node.args[1]
+    if not list or list.type ~= "list" then
+      error("attributes requires a list")
+    end
+
+    function_object.current_attributes = {}
+    for _, argument in ipairs(list.children) do
+      local attribute = argument.children[1]
+      if not attribute or not attribute.value then
+        error("attributes entries must be names")
+      end
+      if not attributes[attribute.value] then
+        error("unsupported SDCC attribute `" .. attribute.value .. "`")
+      end
+      table.insert(function_object.current_attributes, attribute.value)
+    end
+
+    print("sdcc::current_attributes: [" ..
+      table.concat(function_object.current_attributes, ", ") .. "]")
+  end
+
+  for _, child in ipairs(node.children) do
+    collect_attributes(child, function_object)
   end
 end
 
@@ -242,6 +274,7 @@ return {
     local function_object = {
       name = name,
       append_to = {},
+      current_attributes = {},
       delimiters = {},
       contents = "",
     }
@@ -249,6 +282,7 @@ return {
     if context then
       process_context(context)
       collect_asm_sources(context, function_object)
+      collect_attributes(context, function_object)
       collect_delimiters(context, function_object)
       collect_contents(context, function_object)
     end

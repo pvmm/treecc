@@ -7,12 +7,12 @@ ruleset {
 }
 
 sdcc::function print {
-	//sdcc::language assembly                       // optional because file type ends in ".asm")
-	append-to "./include/stdio.asm"
-	attributes { sdcc::optional }                   // if "sdcc::optional" is set, function usage is verified and may not be included in compilation
-	delimiters [ "---------------" ]
 	variable $name "Pedro"
 	debug "Hello, $name!"
+	//sdcc::language assembly                       // optional because file type ends in ".asm")
+	append-to "./include/stdio.asm"                 // file to append code to.
+	attributes [ .OPTIONAL .SIZE ]                  // if ".OPTIONAL" is set, function usage is verified and may not be included in compilation
+	delimiters [ "---------------" ]
 	contents:
 ---------------
 CHPUT = $0x00A2
