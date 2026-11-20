@@ -172,7 +172,6 @@ local function extract_contents(blob_text, delimiters)
 
   local value = blob_text:sub(opening_end + 1, closing_start - 1)
   value = value:gsub("^\r?\n", "", 1)
-  value = value:gsub("\r?\n$", "", 1)
   return value
 end
 
