@@ -5,6 +5,27 @@ toolchains through extensible, high-level project recipes. The app reads a
 recipe and a definitions file, loads the requested modules, and dispatches
 namespaced commands to those modules. Its goal is to provide one consistent
 interface for defining project build workflows across compilers and tools.
+TreeCC was designed to work around shortcomings in individual compilers and
+assemblers by providing a shared, high-level way to express and orchestrate
+their workflows.
+
+## Example workflow
+
+One workflow TreeCC is intended to orchestrate is combining assembly code with
+a C program when each build step depends on information produced by another:
+
+1. Assemble the source file once to determine the size of its machine code.
+2. Generate or update the C source with an array sized to hold that code.
+3. Compile the C program and inspect its output to determine the array's memory
+   address.
+4. Reassemble the assembly source using that address, so it knows where its
+   code will reside.
+5. Convert the final assembled code into a byte array, place it in the C
+   source, and compile the C program again.
+
+This example illustrates the kind of multi-stage compiler and assembler
+coordination TreeCC aims to describe; executing build actions is not yet
+implemented.
 
 TreeCC is an early-stage implementation. The current app parses its input,
 loads Lua handlers and dynamic modules, and collects some SDCC function
