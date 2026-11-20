@@ -1,0 +1,14 @@
+project "Append file test"
+
+ruleset {
+  "sdcc-bundle-4.2.0": sdcc
+}
+
+sdcc::function example {
+  append-to "output.asm"
+  delimiters [ "---------------" ]
+  contents:
+---------------
+PAYLOAD
+---------------
+}

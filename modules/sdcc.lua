@@ -241,6 +241,18 @@ local function collect_contents(node, function_object)
   end
 end
 
+local function write_asm_source(function_object, path)
+  local output, open_error = io.open(path, "ab")
+  if not output then
+    error("could not open `" .. path .. "` for appending: " .. open_error)
+  end
+  output:write(function_object.contents)
+  local closed, close_error = output:close()
+  if not closed then
+    error("could not finish writing `" .. path .. "`: " .. close_error)
+  end
+end
+
 return {
   source = function(command)
     local context_id = command.args[1] and command.args[1].value
@@ -285,6 +297,9 @@ return {
       collect_attributes(context, function_object)
       collect_delimiters(context, function_object)
       collect_contents(context, function_object)
+      for _, path in ipairs(function_object.append_to) do
+        write_asm_source(function_object, path)
+      end
     end
     table.insert(functions, function_object)
     current_function = function_object
@@ -301,7 +316,11 @@ return {
     if not current_function then
       error("sdcc::append-to must be inside sdcc::function")
     end
+    if not path then
+      error("sdcc::append-to requires a path")
+    end
     append_asm_source(current_function, path)
+    write_asm_source(current_function, path)
   end,
 
   ["sdcc::clean"] = function()

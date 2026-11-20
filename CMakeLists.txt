@@ -110,6 +110,26 @@ if(BUILD_TESTING)
     ENVIRONMENT
       "PATH=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/fake-bin;HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
   )
+  foreach(append_mode IN ITEMS create append)
+    set(append_working_directory
+      "${CMAKE_CURRENT_BINARY_DIR}/sdcc-append-${append_mode}"
+    )
+    file(MAKE_DIRECTORY "${append_working_directory}")
+    add_test(
+      NAME "sdcc_append_file_${append_mode}"
+      COMMAND "${CMAKE_COMMAND}"
+        "-DTREECC_EXECUTABLE=$<TARGET_FILE:treecc>"
+        "-DRECIPE=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/sdcc_append_file.rec"
+        "-DDEFINITIONS=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
+        "-DWORKING_DIRECTORY=${append_working_directory}"
+        "-DTEST_MODE=${append_mode}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/test/check_sdcc_append.cmake"
+    )
+    set_tests_properties("sdcc_append_file_${append_mode}" PROPERTIES
+      ENVIRONMENT
+        "PATH=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/fake-bin;HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
+    )
+  endforeach()
   add_test(
     NAME sdcc_delimiters
     COMMAND "$<TARGET_FILE:treecc>"
@@ -206,4 +226,24 @@ if(BUILD_TESTING)
   set_tests_properties(lua_node_handler PROPERTIES
     PASS_REGULAR_EXPRESSION "Lua handled lua::greet: TreeCC"
   )
+  foreach(test_name IN ITEMS
+      parse_examples
+      sdcc_source_context
+      sdcc_source_filename
+      sdcc_append_to
+      sdcc_delimiters
+      sdcc_contents
+      sdcc_multiple_functions
+      sdcc_debug_interpolation
+      sdcc_attributes
+      sdcc_empty_attributes
+      sdcc_config_path
+      sdcc_missing_from_path
+  )
+    set(test_working_directory "${CMAKE_CURRENT_BINARY_DIR}/test-work/${test_name}")
+    file(MAKE_DIRECTORY "${test_working_directory}/include")
+    set_tests_properties("${test_name}" PROPERTIES
+      WORKING_DIRECTORY "${test_working_directory}"
+    )
+  endforeach()
 endif()
