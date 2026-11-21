@@ -35,6 +35,7 @@ sdcc::source main {
 	variable $romfile "main.rom"
 
 	delimiters [ "{{" "}}" ]
+	trim-contents both
 	contents {{
 int main(void) {
 	printf("Hello, world!\n");

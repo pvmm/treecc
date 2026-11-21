@@ -109,6 +109,15 @@ if(BUILD_TESTING)
       -P "${CMAKE_CURRENT_SOURCE_DIR}/test/check_sdcc_source_file.cmake"
   )
   add_test(
+    NAME sdcc_trim_contents
+    COMMAND "${CMAKE_COMMAND}"
+      "-DTREECC_EXECUTABLE=$<TARGET_FILE:treecc>"
+      "-DRECIPE=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/sdcc_trim_contents.rec"
+      "-DDEFINITIONS=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
+      "-DWORKING_DIRECTORY=${CMAKE_CURRENT_BINARY_DIR}/sdcc-trim-contents"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/test/check_sdcc_trim_contents.cmake"
+  )
+  add_test(
     NAME sdcc_append_to
     COMMAND "$<TARGET_FILE:treecc>"
       "${CMAKE_CURRENT_SOURCE_DIR}/sample.rec"

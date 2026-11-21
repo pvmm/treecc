@@ -1,0 +1,32 @@
+project "Trim contents test"
+
+ruleset {
+  "sdcc-bundle-4.2.0": sdcc
+}
+
+sdcc::source left {
+  filename "trim/left.c"
+  trim-contents left
+  delimiters [ "{{" "}}" ]
+  contents {{
+  PAYLOAD
+}}
+}
+
+sdcc::source right {
+  filename "trim/right.c"
+  trim-contents right
+  delimiters [ "{{" "}}" ]
+  contents {{
+  PAYLOAD
+}}
+}
+
+sdcc::source both {
+  filename "trim/both.c"
+  trim-contents both
+  delimiters [ "{{" "}}" ]
+  contents {{
+  PAYLOAD
+}}
+}

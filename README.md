@@ -86,6 +86,9 @@ When `.OPTIONAL` is enabled, the contents are enclosed in `.ifdef _USED_FUNCTION
 and `.endif`, where `FUNCTION_NAME` is the uppercase function name.
 Within SDCC function contents, `$sdcc::function` and `${sdcc::function}` both
 interpolate to the current function name.
+The `trim-contents` subnode accepts `left`, `right`, or `both` and removes
+whitespace characters such as spaces, tabs, and newlines from the selected
+beginning, end, or both ends of contents in source and function scopes.
 SDCC source contexts have an ID and create the file named by `filename`.
 Their `include-dirs` and `library-dirs` lists, delimiters, and contents are
 stored in the source scope.

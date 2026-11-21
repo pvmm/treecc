@@ -9,10 +9,13 @@ sdcc::source main {
   include-dirs [ "." "./include" ]
   library-dirs [ "./lib" "../lib" ]
   variable $name "Pedro"
+  trim-contents both
   delimiters [ "{{" "}}" ]
   contents {{
+
 int main(void) {
   return $name[0];
 }
+
 }}
 }

@@ -262,6 +262,38 @@ local function collect_delimiters(node, function_object)
   end
 end
 
+local function collect_trim_contents(node, owner)
+  if node.type == "function_call" and node.name == "trim-contents" then
+    local option = node.args[1] and node.args[1].value
+    if option ~= "left" and option ~= "right" and option ~= "both" then
+      error("trim-contents requires left, right, or both")
+    end
+    owner.trim_contents = option
+    print("sdcc::trim-contents: " .. option)
+  end
+
+  for _, child in ipairs(node.children) do
+    collect_trim_contents(child, owner)
+  end
+end
+
+local function trim_contents(value, option)
+  if option == "left" or option == "both" then
+    value = value:gsub("^%s+", "")
+  end
+  if option == "right" or option == "both" then
+    value = value:gsub("%s+$", "")
+  end
+  return value
+end
+
+local function finalize_contents(owner)
+  owner.contents = interpolate(owner.contents, true)
+  if owner.trim_contents then
+    owner.contents = trim_contents(owner.contents, owner.trim_contents)
+  end
+end
+
 local function collect_contents(node, function_object)
   if node.type == "blob_property" then
     local blob
@@ -276,7 +308,7 @@ local function collect_contents(node, function_object)
     end
     function_object.contents =
       extract_contents(blob.text, function_object.delimiters)
-    function_object.contents = interpolate(function_object.contents, true)
+    finalize_contents(function_object)
     for _, attribute in ipairs(function_object.current_attributes) do
       if attribute == ".OPTIONAL" then
         local contents = function_object.contents
@@ -355,7 +387,7 @@ local function collect_source_metadata(node, source_object)
     end
     source_object.contents =
       extract_contents(blob.text, source_object.delimiters)
-    source_object.contents = interpolate(source_object.contents, true)
+    finalize_contents(source_object)
     print("sdcc::source contents: received " .. source_object.contents)
   end
 
@@ -446,12 +478,14 @@ return {
       include_dirs = {},
       library_dirs = {},
       delimiters = {},
+      trim_contents = nil,
       contents = "",
     }
     local saved_variables = copy_variables()
     local succeeded, failure = pcall(function()
       variables["$sdcc::source"] = context_id
       process_context(context, context_id)
+      collect_trim_contents(context, source_object)
       collect_source_metadata(context, source_object)
       write_source_file(source_object)
     end)
@@ -481,6 +515,7 @@ return {
       append_to = {},
       current_attributes = {},
       delimiters = {},
+      trim_contents = nil,
       contents = "",
     }
     local context = command.args[2]
@@ -493,6 +528,7 @@ return {
         collect_asm_sources(context, function_object)
         collect_attributes(context, function_object)
         collect_delimiters(context, function_object)
+        collect_trim_contents(context, function_object)
         collect_contents(context, function_object)
         for _, path in ipairs(function_object.append_to) do
           write_asm_source(function_object, path)
