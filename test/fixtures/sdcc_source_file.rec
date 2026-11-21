@@ -9,8 +9,8 @@ sdcc::source main {
   include-dirs [ "." "./include" ]
   library-dirs [ "./lib" "../lib" ]
   variable $name "Pedro"
-  trim-contents both
   delimiters [ "{{" "}}" ]
+  contents-interpolation "false"
   contents {{
 
 int main(void) {

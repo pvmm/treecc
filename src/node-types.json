@@ -63,6 +63,25 @@
     }
   },
   {
+    "type": "contents_interpolation",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "identifier",
+          "named": true
+        },
+        {
+          "type": "string",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "context",
     "named": true,
     "fields": {},
@@ -72,6 +91,10 @@
       "types": [
         {
           "type": "blob_property",
+          "named": true
+        },
+        {
+          "type": "contents_interpolation",
           "named": true
         },
         {
@@ -104,6 +127,10 @@
         },
         {
           "type": "string",
+          "named": true
+        },
+        {
+          "type": "trim_contents",
           "named": true
         },
         {
@@ -257,6 +284,10 @@
           "named": true
         },
         {
+          "type": "contents_interpolation",
+          "named": true
+        },
+        {
           "type": "function_call",
           "named": true
         },
@@ -266,6 +297,29 @@
         },
         {
           "type": "mapping",
+          "named": true
+        },
+        {
+          "type": "trim_contents",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "trim_contents",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "identifier",
+          "named": true
+        },
+        {
+          "type": "string",
           "named": true
         }
       ]
@@ -324,6 +378,10 @@
     "named": false
   },
   {
+    "type": "contents-interpolation",
+    "named": false
+  },
+  {
     "type": "fun",
     "named": false
   },
@@ -346,6 +404,10 @@
   {
     "type": "string",
     "named": true
+  },
+  {
+    "type": "trim-contents",
+    "named": false
   },
   {
     "type": "variable",

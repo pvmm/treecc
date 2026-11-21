@@ -6,7 +6,7 @@ ruleset {
 
 sdcc::source left {
   filename "trim/left.c"
-  trim-contents left
+  trim-contents "left"
   delimiters [ "{{" "}}" ]
   contents {{
   PAYLOAD
@@ -15,7 +15,7 @@ sdcc::source left {
 
 sdcc::source right {
   filename "trim/right.c"
-  trim-contents right
+  trim-contents "right"
   delimiters [ "{{" "}}" ]
   contents {{
   PAYLOAD
@@ -24,7 +24,7 @@ sdcc::source right {
 
 sdcc::source both {
   filename "trim/both.c"
-  trim-contents both
+  trim-contents "both"
   delimiters [ "{{" "}}" ]
   contents {{
   PAYLOAD

@@ -7,8 +7,8 @@ ruleset {
 sdcc::function example {
   append-to "nested/include/output.asm"
   attributes [ .OPTIONAL ]
-  trim-contents both
   delimiters [ "---------------" ]
+  contents-interpolation "false"
   contents:
 ---------------
 

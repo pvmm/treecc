@@ -263,8 +263,8 @@ local function collect_delimiters(node, function_object)
 end
 
 local function collect_trim_contents(node, owner)
-  if node.type == "function_call" and node.name == "trim-contents" then
-    local option = node.args[1] and node.args[1].value
+  if node.type == "trim_contents" then
+    local option = node.children[1] and node.children[1].value
     if option ~= "left" and option ~= "right" and option ~= "both" then
       error("trim-contents requires left, right, or both")
     end
@@ -274,6 +274,21 @@ local function collect_trim_contents(node, owner)
 
   for _, child in ipairs(node.children) do
     collect_trim_contents(child, owner)
+  end
+end
+
+local function collect_contents_interpolation(node, owner)
+  if node.type == "contents_interpolation" then
+    local option = node.children[1] and node.children[1].value
+    if option ~= "true" and option ~= "false" then
+      error("contents-interpolation requires true or false")
+    end
+    owner.contents_interpolation = option == "true"
+    print("sdcc::contents-interpolation: " .. option)
+  end
+
+  for _, child in ipairs(node.children) do
+    collect_contents_interpolation(child, owner)
   end
 end
 
@@ -288,7 +303,9 @@ local function trim_contents(value, option)
 end
 
 local function finalize_contents(owner)
-  owner.contents = interpolate(owner.contents, true)
+  if owner.contents_interpolation then
+    owner.contents = interpolate(owner.contents, true)
+  end
   if owner.trim_contents then
     owner.contents = trim_contents(owner.contents, owner.trim_contents)
   end
@@ -479,6 +496,7 @@ return {
       library_dirs = {},
       delimiters = {},
       trim_contents = nil,
+      contents_interpolation = true,
       contents = "",
     }
     local saved_variables = copy_variables()
@@ -486,6 +504,7 @@ return {
       variables["$sdcc::source"] = context_id
       process_context(context, context_id)
       collect_trim_contents(context, source_object)
+      collect_contents_interpolation(context, source_object)
       collect_source_metadata(context, source_object)
       write_source_file(source_object)
     end)
@@ -516,6 +535,7 @@ return {
       current_attributes = {},
       delimiters = {},
       trim_contents = nil,
+      contents_interpolation = true,
       contents = "",
     }
     local context = command.args[2]
@@ -529,6 +549,7 @@ return {
         collect_attributes(context, function_object)
         collect_delimiters(context, function_object)
         collect_trim_contents(context, function_object)
+        collect_contents_interpolation(context, function_object)
         collect_contents(context, function_object)
         for _, path in ipairs(function_object.append_to) do
           write_asm_source(function_object, path)

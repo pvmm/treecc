@@ -18,7 +18,15 @@ module.exports = grammar({
         $.blob_property,
         $.mapping,
         $.function_call,
+        $.trim_contents,
+        $.contents_interpolation,
       ),
+
+    trim_contents: ($) =>
+      seq("trim-contents", choice($.identifier, $.string)),
+
+    contents_interpolation: ($) =>
+      seq("contents-interpolation", choice($.identifier, $.string)),
 
     function_definition: ($) =>
       seq(

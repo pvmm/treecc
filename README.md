@@ -89,6 +89,9 @@ interpolate to the current function name.
 The `trim-contents` subnode accepts `left`, `right`, or `both` and removes
 whitespace characters such as spaces, tabs, and newlines from the selected
 beginning, end, or both ends of contents in source and function scopes.
+The `contents-interpolation` subnode accepts `true` or `false`. It defaults to
+`true`; setting it to `false` preserves variable references in source and
+function contents without interpolation.
 SDCC source contexts have an ID and create the file named by `filename`.
 Their `include-dirs` and `library-dirs` lists, delimiters, and contents are
 stored in the source scope.
