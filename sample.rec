@@ -37,7 +37,7 @@ sdcc::source main {
 	delimiters [ "{{" "}}" ]
 	trim-contents both
 	contents {{
-int main(void) {
+int ${sdcc::source}(void) {
 	printf("Hello, world!\n");
 loop:
 	goto loop;
