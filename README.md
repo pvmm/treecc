@@ -86,6 +86,9 @@ When `.OPTIONAL` is enabled, the contents are enclosed in `.ifdef _USED_FUNCTION
 and `.endif`, where `FUNCTION_NAME` is the uppercase function name.
 Within SDCC function contents, `$sdcc::function` and `${sdcc::function}` both
 interpolate to the current function name.
+SDCC source contexts have an ID and create the file named by `filename`.
+Their `include-dirs` and `library-dirs` lists, delimiters, and contents are
+stored in the source scope.
 
 ## Tree-sitter
 

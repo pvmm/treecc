@@ -100,6 +100,15 @@ if(BUILD_TESTING)
       "PATH=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/fake-bin;HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
   )
   add_test(
+    NAME sdcc_source_file
+    COMMAND "${CMAKE_COMMAND}"
+      "-DTREECC_EXECUTABLE=$<TARGET_FILE:treecc>"
+      "-DRECIPE=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/sdcc_source_file.rec"
+      "-DDEFINITIONS=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
+      "-DWORKING_DIRECTORY=${CMAKE_CURRENT_BINARY_DIR}/sdcc-source-file"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/test/check_sdcc_source_file.cmake"
+  )
+  add_test(
     NAME sdcc_append_to
     COMMAND "$<TARGET_FILE:treecc>"
       "${CMAKE_CURRENT_SOURCE_DIR}/sample.rec"

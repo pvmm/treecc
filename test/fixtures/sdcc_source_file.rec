@@ -1,0 +1,18 @@
+project "Source file test"
+
+ruleset {
+  "sdcc-bundle-4.2.0": sdcc
+}
+
+sdcc::source main {
+  filename "nested/main.c"
+  include-dirs [ "." "./include" ]
+  library-dirs [ "./lib" "../lib" ]
+  variable $name "Pedro"
+  delimiters [ "{{" "}}" ]
+  contents {{
+int main(void) {
+  return $name[0];
+}
+}}
+}

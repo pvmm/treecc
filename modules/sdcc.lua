@@ -72,6 +72,7 @@ end
 bootstrap()
 
 local functions = {}
+local sources = {}
 local variables = {}
 local attributes = {
   [".OPTIONAL"] = true,
@@ -127,14 +128,14 @@ local function interpolate(value, preserve_undefined)
   return table.concat(result)
 end
 
-local function process_context(node)
+local function process_context(node, scope_id)
   if node.type == "string" and node.value then
-    node.value = interpolate(node.value)
+    node.value = interpolate(node.value, true)
   end
 
   if node.type == "function_call" then
     for _, argument in ipairs(node.args) do
-      process_context(argument)
+      process_context(argument, scope_id)
     end
 
     if node.name == "variable" then
@@ -145,6 +146,11 @@ local function process_context(node)
         error("variable requires a variable name and a value")
       end
       variables[variable.value] = tostring(value.value)
+      if scope_id then
+        local local_name = variable.value:gsub("^$", "")
+        variables["$" .. scope_id .. "::" .. local_name:gsub("^%$", "")] =
+          tostring(value.value)
+      end
     elseif node.name == "debug" then
       local message = node.args[1]
       if not message or message.type ~= "string" or not message.value then
@@ -156,7 +162,7 @@ local function process_context(node)
   end
 
   for _, child in ipairs(node.children) do
-    process_context(child)
+    process_context(child, scope_id)
   end
 end
 
@@ -291,6 +297,119 @@ local function collect_contents(node, function_object)
   end
 end
 
+local function collect_source_metadata(node, source_object)
+  if node.type == "function_call" then
+    if node.name == "filename" then
+      source_object.filename = node.args[1] and node.args[1].value
+      if not source_object.filename then
+        error("filename command requires a string")
+      end
+      print("source filename: " .. source_object.filename)
+    elseif node.name == "include-dirs" or node.name == "library-dirs" then
+      local list = node.args[1]
+      if not list or list.type ~= "list" then
+        error(node.name .. " requires a list")
+      end
+      local values = {}
+      for _, argument in ipairs(list.children) do
+        local value = argument.children[1]
+        if not value or not value.value then
+          error(node.name .. " entries must be values")
+        end
+        table.insert(values, value.value)
+      end
+      if node.name == "include-dirs" then
+        source_object.include_dirs = values
+      else
+        source_object.library_dirs = values
+      end
+      print("sdcc::source " .. node.name .. ": [" ..
+        table.concat(values, ", ") .. "]")
+    elseif node.name == "delimiters" then
+      local list = node.args[1]
+      if not list or list.type ~= "list" then
+        error("delimiters requires a list")
+      end
+      local values = {}
+      for _, argument in ipairs(list.children) do
+        local value = argument.children[1]
+        if not value or value.type ~= "string" then
+          error("delimiters entries must be strings")
+        end
+        table.insert(values, value.value)
+      end
+      source_object.delimiters = values
+      print("sdcc::delimiters: received [" ..
+        table.concat(source_object.delimiters, ", ") .. "]")
+    end
+  elseif node.type == "blob_property" then
+    local blob
+    for _, child in ipairs(node.children) do
+      if child.type == "blob" then
+        blob = child
+        break
+      end
+    end
+    if not blob then
+      error("contents property is missing its blob")
+    end
+    source_object.contents =
+      extract_contents(blob.text, source_object.delimiters)
+    source_object.contents = interpolate(source_object.contents, true)
+    print("sdcc::source contents: received " .. source_object.contents)
+  end
+
+  for _, child in ipairs(node.children) do
+    collect_source_metadata(child, source_object)
+  end
+end
+
+local function copy_variables()
+  local copied = {}
+  for name, value in pairs(variables) do
+    copied[name] = value
+  end
+  return copied
+end
+
+local function restore_variables(saved)
+  for name in pairs(variables) do
+    variables[name] = nil
+  end
+  for name, value in pairs(saved) do
+    variables[name] = value
+  end
+end
+
+local function write_source_file(source_object)
+  if not source_object.filename then
+    error("sdcc::source requires a filename")
+  end
+  local directories_created, directory_error =
+    treecc.create_parent_directories(source_object.filename)
+  if not directories_created then
+    error("could not create parent directories for `" ..
+      source_object.filename .. "`: " .. directory_error)
+  end
+  local output, open_error = io.open(source_object.filename, "wb")
+  if not output then
+    error("could not open `" .. source_object.filename ..
+      "` for writing: " .. open_error)
+  end
+  local written, write_error = output:write(source_object.contents)
+  if not written then
+    output:close()
+    error("could not write to `" .. source_object.filename ..
+      "`: " .. write_error)
+  end
+  local closed, close_error = output:close()
+  if not closed then
+    error("could not finish writing `" .. source_object.filename ..
+      "`: " .. close_error)
+  end
+  print("sdcc::source file: created " .. source_object.filename)
+end
+
 local function write_asm_source(function_object, path)
   local directories_created, directory_error =
     treecc.create_parent_directories(path)
@@ -321,22 +440,35 @@ return {
     if not context_id or not context or context.type ~= "context" then
       error("sdcc::source requires an id and context")
     end
-    print("sdcc::source: " .. context_id)
-
-    local function process(node)
-      if node.type == "function_call" and node.name == "filename" then
-        local filename = node.args[1] and node.args[1].value
-        if not filename then
-          error("filename command requires a string")
-        end
-        print("source filename: " .. filename)
-      end
-      for _, child in ipairs(node.children) do
-        process(child)
-      end
+    local source_object = {
+      id = context_id,
+      filename = nil,
+      include_dirs = {},
+      library_dirs = {},
+      delimiters = {},
+      contents = "",
+    }
+    local saved_variables = copy_variables()
+    local succeeded, failure = pcall(function()
+      variables["$sdcc::source"] = context_id
+      process_context(context, context_id)
+      collect_source_metadata(context, source_object)
+      write_source_file(source_object)
+    end)
+    restore_variables(saved_variables)
+    if not succeeded then
+      error(failure, 0)
     end
-
-    process(context)
+    table.insert(sources, source_object)
+    print("sdcc::source: " .. context_id)
+    print("sdcc::sources: registered [" ..
+      table.concat((function()
+        local ids = {}
+        for _, source in ipairs(sources) do
+          table.insert(ids, source.id)
+        end
+        return ids
+      end)(), ", ") .. "]")
   end,
 
   ["sdcc::function"] = function(command)
