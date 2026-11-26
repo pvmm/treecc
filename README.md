@@ -76,25 +76,55 @@ Lua is embedded in the application. Lua command handlers are loaded from
 `sdcc.lua`. Each script returns a table of handler functions, which receive
 the parsed command as a Lua node table.
 
-The SDCC module recognizes `.OPTIONAL` and `.SIZE` in a function's `attributes`
-list and stores the enabled flags in that function's `current_attributes` list.
-An empty list leaves no flags enabled.
-Each `append-to` path is opened in append mode and receives the function's
-extracted contents, creating any missing parent directories and the file if
-they do not already exist.
-When `.OPTIONAL` is enabled, the contents are enclosed in `.ifdef _USED_FUNCTION_NAME_`
-and `.endif`, where `FUNCTION_NAME` is the uppercase function name.
-Within SDCC function contents, `$sdcc::function` and `${sdcc::function}` both
-interpolate to the current function name.
-The `trim-contents` subnode accepts `left`, `right`, or `both` and removes
-whitespace characters such as spaces, tabs, and newlines from the selected
-beginning, end, or both ends of contents in source and function scopes.
-The `contents-interpolation` subnode accepts `true` or `false`. It defaults to
-`true`; setting it to `false` preserves variable references in source and
-function contents without interpolation.
-SDCC source contexts have an ID and create the file named by `filename`.
-Their `include-dirs` and `library-dirs` lists, delimiters, and contents are
-stored in the source scope.
+## SDCC module rules
+
+The SDCC module is loaded when `ruleset` lists `sdcc-bundle-4.2.0`. The
+compiler executable is found first through `~/.config/treecc` (`[sdcc]` section,
+`path` key) and then through `PATH`.
+
+### Target
+
+`sdcc::target <name>` sets the active compiler target. All subsequent SDCC
+compilations use `-m<name>` (for example, `sdcc::target z80` produces `-mz80`).
+
+### Function scope (`sdcc::function`)
+
+* A function has an ID, optional `attributes`, optional `signature`,
+  `delimiters`, `contents`, and one or more `append-to` paths.
+* `attributes` accepts `.OPTIONAL` and `.SIZE`; both are stored in
+  `current_attributes`. An empty list enables no flags.
+* Within function contents, `$sdcc::function` and `${sdcc::function}` both
+  interpolate to the function name.
+* `signature` is a text subnode. Its interpolated text is prepended to every
+  generated `sdcc::source` file (for example,
+  `signature "void $sdcc::function(char* s);"`).
+* `append-to` opens the path in append mode, creates missing parent directories,
+  and writes the function's extracted contents. The path extension determines
+  the language: `.c` is C, anything else (such as `.asm`) is assembly.
+* When `.OPTIONAL` is enabled, the contents are enclosed in a usage guard:
+  * C functions: `#ifdef _USED_<name>_FUNCTION` / `#endif`
+  * Assembly functions: `.ifdef _USED_<name>_FUNCTION` / `.endif`
+  The function name keeps its declared case; only the `_USED_` prefix is
+  uppercase.
+* Each function also contributes the line
+  `#define <name>(...) _USED_<name>(__VA_ARGS__)` to `out/translations.h`.
+
+### Source scope (`sdcc::source`)
+
+* A source has an ID and creates the file named by `filename`.
+* `include-dirs` and `library-dirs` lists, `delimiters`, `contents`,
+  `trim-contents`, and `contents-interpolation` are stored in the source scope.
+* `trim-contents` accepts `left`, `right`, or `both` and removes whitespace from
+  the selected ends of contents in source and function scopes.
+* `contents-interpolation` accepts `true` or `false`; it defaults to `true`.
+  Setting it to `false` preserves variable references in source and function
+  contents.
+* Every generated source begins with `#include "out/translations.h"`, followed
+  by any function signatures and then the source contents.
+* When the source scope finishes, the generated file is compiled with SDCC into
+  `out/<basename>.rel` (no linking). Include directories are passed with `-I`.
+* The generated `out/<basename>.lst` is scanned for `_USED_<name>` symbols. Each
+  match produces `#define USED_<name>_FUNCTION 1` in `out/defs.h`.
 
 ## Tree-sitter
 
