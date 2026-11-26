@@ -1,0 +1,24 @@
+project "Function includes test"
+
+ruleset {
+  "sdcc-bundle-4.2.0": sdcc
+}
+
+sdcc::function from_asm {
+  append-to "out/from_asm.asm"
+  delimiters [ "---" ]
+  contents:
+---
+nop
+---
+}
+
+sdcc::function from_c {
+  append-to "out/from_c.c"
+  delimiters [ "---" ]
+  contents:
+---
+void from_c(void) {
+}
+---
+}

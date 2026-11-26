@@ -374,6 +374,10 @@ local function collect_contents(node, function_object)
         break
       end
     end
+    local include_line = is_c_function(function_object)
+      and "#include \"out/defs.h\"\n"
+      or ".include \"out/defs.asm\"\n"
+    function_object.contents = include_line .. function_object.contents
     print("sdcc::contents: received " .. function_object.contents)
   end
 
@@ -583,8 +587,8 @@ local function write_used_defs(lst_path)
 
   for _, function_object in ipairs(functions) do
     local symbol = "_USED_" .. function_object.name
-    -- include "#define _USED_function_FUNCTION 1" for each function
-    local macro = "USED_" .. function_object.name .. "_FUNCTION"
+    -- include "_USED_<function>_FUNCTION" for each used function
+    local macro = "_USED_" .. function_object.name .. "_FUNCTION"
     if not used_symbols[macro] and content:find(symbol, 1, true) then
       used_symbols[macro] = true
       table.insert(used_symbols, macro)
@@ -620,7 +624,7 @@ local function write_used_defs(lst_path)
     return "#define " .. symbol .. " 1"
   end)
   write_defs_file("out/defs.asm", function(symbol)
-    return ".define _" .. symbol .. " /1/"
+    return ".define " .. symbol .. " /1/"
   end)
 end
 

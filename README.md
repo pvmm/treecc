@@ -119,6 +119,9 @@ compilations use `-m<name>` (for example, `sdcc::target z80` produces `-mz80`).
 * `append-to` opens the path in append mode, creates missing parent directories,
   and writes the function's extracted contents. The path extension determines
   the language: `.c` is C, anything else (such as `.asm`) is assembly.
+* Function contents always start with a defs include: `#include "out/defs.h"`
+  for C and `.include "out/defs.asm"` for assembly (valid ASxxxx syntax). The
+  include is placed before any `.OPTIONAL` usage guard.
 * When `.OPTIONAL` is enabled, the contents are enclosed in a usage guard:
   * C functions: `#ifdef _USED_<name>_FUNCTION` / `#endif`
   * Assembly functions: `.ifdef _USED_<name>_FUNCTION` / `.endif`
@@ -143,7 +146,7 @@ compilations use `-m<name>` (for example, `sdcc::target z80` produces `-mz80`).
   closing the source scope. The generated file is compiled with SDCC into
   `out/<basename>.rel` (no linking); include directories are passed with `-I`.
 * The generated `out/<basename>.lst` is scanned for `_USED_<name>` symbols. Each
-  match produces `#define USED_<name>_FUNCTION 1` in `out/defs.h` and
+  match produces `#define _USED_<name>_FUNCTION 1` in `out/defs.h` and
   `.define _USED_<name>_FUNCTION /1/` in `out/defs.asm`, making the usage guard
   visible to both C and assembly code.
 

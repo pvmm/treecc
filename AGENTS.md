@@ -46,7 +46,7 @@ compilations use `-m<name>` (for example, `sdcc::target z80` → `-mz80`).
   closing the source scope. The generated file is compiled with SDCC into
   `out/<basename>.rel` (no linking). Include directories are passed with `-I`.
 * The generated `out/<basename>.lst` is scanned for `_USED_<name>` symbols.
-  Each match produces `#define USED_<name>_FUNCTION 1` in `out/defs.h` and
+  Each match produces `#define _USED_<name>_FUNCTION 1` in `out/defs.h` and
   `.define _USED_<name>_FUNCTION /1/` in `out/defs.asm`, so C and assembly
   code can both test the usage guard.
 
@@ -59,6 +59,9 @@ compilations use `-m<name>` (for example, `sdcc::target z80` → `-mz80`).
 * `signature` text is prepended to every generated `sdcc::source` file.
 * `append-to` appends the function contents to the path (creating parents).
   A `.c` extension means C, anything else (for example `.asm`) means assembly.
+* Function contents always start with a defs include: `#include "out/defs.h"`
+  for C and `.include "out/defs.asm"` for assembly (valid ASxxxx syntax). This
+  line is inserted before any `.OPTIONAL` guard.
 * With `.OPTIONAL`, contents are wrapped in a usage guard:
   * C: `#ifdef _USED_<name>_FUNCTION` / `#endif`
   * Assembly: `.ifdef _USED_<name>_FUNCTION` / `.endif`

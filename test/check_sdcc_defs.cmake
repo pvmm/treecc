@@ -27,7 +27,7 @@ endforeach()
 
 file(READ "${WORKING_DIRECTORY}/out/defs.h" header)
 file(READ "${WORKING_DIRECTORY}/out/defs.asm" assembly)
-set(expected_header "#define USED_example_FUNCTION 1\n")
+set(expected_header "#define _USED_example_FUNCTION 1\n")
 set(expected_assembly ".define _USED_example_FUNCTION /1/\n")
 if(NOT header STREQUAL expected_header)
   message(FATAL_ERROR "Unexpected defs.h contents: [${header}]")
