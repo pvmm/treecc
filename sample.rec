@@ -26,7 +26,7 @@ $sdcc::function:
         ret z               ; If A == 0 (Zero flag set), end of string reached -> return
         call CHPUT          ; Print the character in A via MSX BIOS
         inc hl              ; Move pointer to the next character
-        jr $sdcc::function     ; Repeat the loop
+        jr $sdcc::function   ; Repeat the loop
 ---------------
 	append-to "stdio.asm"                 // file to append code to.
 }
