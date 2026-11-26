@@ -48,6 +48,7 @@ local function is_working_sdcc(path)
 end
 
 local sdcc_executable
+local sdcc_target
 
 local function bootstrap()
   local configured_path = configured_sdcc_path()
@@ -505,6 +506,9 @@ local function compile_source(source_object)
   end
 
   local command = shell_quote(sdcc_executable) .. " -c"
+  if sdcc_target then
+    command = command .. " -m" .. sdcc_target
+  end
   for _, include_dir in ipairs(source_object.include_dirs) do
     command = command .. " -I" .. shell_quote(include_dir)
   end
@@ -692,6 +696,15 @@ return {
     end
     append_asm_source(current_function, path)
     write_asm_source(current_function, path)
+  end,
+
+  ["sdcc::target"] = function(command)
+    local target = command.args[1] and command.args[1].value
+    if not target then
+      error("sdcc::target requires a target")
+    end
+    sdcc_target = target
+    print("sdcc::target: " .. target)
   end,
 
   ["sdcc::clean"] = function()
