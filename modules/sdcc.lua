@@ -81,6 +81,8 @@ local sources = {}
 local variables = {}
 local used_symbols = {}
 local translations = {}
+local translations_asm = {}
+local has_optional_function = false
 local attributes = {
   [".OPTIONAL"] = true,
   [".SIZE"] = true,
@@ -356,8 +358,10 @@ local function collect_contents(node, function_object)
     function_object.contents =
       extract_contents(blob.text, function_object.delimiters)
     finalize_contents(function_object)
+    local is_optional = false
     for _, attribute in ipairs(function_object.current_attributes) do
       if attribute == ".OPTIONAL" then
+        is_optional = true
         local contents = function_object.contents
         if contents ~= "" and contents:sub(-1) ~= "\n" then
           contents = contents .. "\n"
@@ -374,10 +378,15 @@ local function collect_contents(node, function_object)
         break
       end
     end
-    local include_line = is_c_function(function_object)
+    local include_lines = is_c_function(function_object)
       and "#include \"out/defs.h\"\n"
       or ".include \"out/defs.asm\"\n"
-    function_object.contents = include_line .. function_object.contents
+    if is_optional then
+      include_lines = include_lines .. (is_c_function(function_object)
+        and "#include \"out/translations.h\"\n"
+        or ".include \"out/translations.asm\"\n")
+    end
+    function_object.contents = include_lines .. function_object.contents
     print("sdcc::contents: received " .. function_object.contents)
   end
 
@@ -484,6 +493,32 @@ local function write_translations_header()
   end
   local content = #translations > 0
       and table.concat(translations, "\n") .. "\n" or ""
+  local written, write_error = output:write(content)
+  if not written then
+    output:close()
+    error("could not write to `" .. path .. "`: " .. write_error)
+  end
+  local closed, close_error = output:close()
+  if not closed then
+    error("could not finish writing `" .. path .. "`: " .. close_error)
+  end
+  print("sdcc::translations: " .. path)
+end
+
+local function write_translations_assembly()
+  local path = "out/translations.asm"
+  local directories_created, directory_error =
+    treecc.create_parent_directories(path)
+  if not directories_created then
+    error("could not create parent directories for `" .. path .. "`: " ..
+      directory_error)
+  end
+  local output, open_error = io.open(path, "wb")
+  if not output then
+    error("could not open `" .. path .. "` for writing: " .. open_error)
+  end
+  local content = #translations_asm > 0
+      and table.concat(translations_asm, "\n") .. "\n" or ""
   local written, write_error = output:write(content)
   if not written then
     output:close()
@@ -734,7 +769,18 @@ return {
     table.insert(functions, function_object)
     table.insert(translations,
       "#define " .. name .. "(...) _USED_" .. name .. "(__VA_ARGS__)")
+    for _, attribute in ipairs(function_object.current_attributes) do
+      if attribute == ".OPTIONAL" then
+        has_optional_function = true
+        table.insert(translations_asm,
+          ".define " .. name .. " /_USED_" .. name .. "/")
+        break
+      end
+    end
     write_translations_header()
+    if has_optional_function then
+      write_translations_assembly()
+    end
     current_function = function_object
     local names = {}
     for _, registered_function in ipairs(functions) do

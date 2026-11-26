@@ -60,8 +60,13 @@ compilations use `-m<name>` (for example, `sdcc::target z80` → `-mz80`).
 * `append-to` appends the function contents to the path (creating parents).
   A `.c` extension means C, anything else (for example `.asm`) means assembly.
 * Function contents always start with a defs include: `#include "out/defs.h"`
-  for C and `.include "out/defs.asm"` for assembly (valid ASxxxx syntax). This
-  line is inserted before any `.OPTIONAL` guard.
+  for C and `.include "out/defs.asm"` for assembly (valid ASxxxx syntax). Both
+  includes are placed before any `.OPTIONAL` guard.
+* With `.OPTIONAL`, a translations include is added immediately after the defs
+  include: `#include "out/translations.h"` for C and
+  `.include "out/translations.asm"` for assembly. When an optional function is
+  registered, `out/translations.asm` is generated with one
+  `.define <name> /_USED_<name>/` line per optional function.
 * With `.OPTIONAL`, contents are wrapped in a usage guard:
   * C: `#ifdef _USED_<name>_FUNCTION` / `#endif`
   * Assembly: `.ifdef _USED_<name>_FUNCTION` / `.endif`

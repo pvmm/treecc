@@ -184,6 +184,19 @@ if(BUILD_TESTING)
       "PATH=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/fake-bin;HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
   )
   add_test(
+    NAME sdcc_optional_includes
+    COMMAND "${CMAKE_COMMAND}"
+      "-DTREECC_EXECUTABLE=$<TARGET_FILE:treecc>"
+      "-DRECIPE=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/sdcc_optional_includes.rec"
+      "-DDEFINITIONS=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
+      "-DWORKING_DIRECTORY=${CMAKE_CURRENT_BINARY_DIR}/sdcc-optional-includes"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/test/check_sdcc_optional_includes.cmake"
+  )
+  set_tests_properties(sdcc_optional_includes PROPERTIES
+    ENVIRONMENT
+      "PATH=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/fake-bin;HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
+  )
+  add_test(
     NAME sdcc_delimiters
     COMMAND "$<TARGET_FILE:treecc>"
       "${CMAKE_CURRENT_SOURCE_DIR}/sample.rec"
@@ -201,7 +214,7 @@ if(BUILD_TESTING)
       "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
   )
   set_tests_properties(sdcc_contents PROPERTIES
-    PASS_REGULAR_EXPRESSION "sdcc::contents: received (\\.include \"out/defs\\.asm\"\n)?\\.ifdef _USED_print_"
+    PASS_REGULAR_EXPRESSION "sdcc::contents: received (\\.include \"out/defs\\.asm\"\n\\.include \"out/translations\\.asm\"\n)?\\.ifdef _USED_print_"
     ENVIRONMENT
       "PATH=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/fake-bin;HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
   )

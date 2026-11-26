@@ -120,8 +120,13 @@ compilations use `-m<name>` (for example, `sdcc::target z80` produces `-mz80`).
   and writes the function's extracted contents. The path extension determines
   the language: `.c` is C, anything else (such as `.asm`) is assembly.
 * Function contents always start with a defs include: `#include "out/defs.h"`
-  for C and `.include "out/defs.asm"` for assembly (valid ASxxxx syntax). The
-  include is placed before any `.OPTIONAL` usage guard.
+  for C and `.include "out/defs.asm"` for assembly (valid ASxxxx syntax), placed
+  before any `.OPTIONAL` usage guard.
+* With `.OPTIONAL`, a translations include follows the defs include:
+  `#include "out/translations.h"` for C or
+  `.include "out/translations.asm"` for assembly. Registering an optional
+  function also generates `out/translations.asm`, containing one
+  `.define <name> /_USED_<name>/` line per optional function.
 * When `.OPTIONAL` is enabled, the contents are enclosed in a usage guard:
   * C functions: `#ifdef _USED_<name>_FUNCTION` / `#endif`
   * Assembly functions: `.ifdef _USED_<name>_FUNCTION` / `.endif`
