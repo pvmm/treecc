@@ -42,7 +42,8 @@ compilations use `-m<name>` (for example, `sdcc::target z80` → `-mz80`).
   references in contents.
 * Every generated source begins with `#include "out/translations.h"`, followed
   by any function signatures and then the source contents.
-* When the scope finishes, the source is compiled with SDCC into
+* Compilation is triggered by the `sdcc::compile <source-id>` action, not by
+  closing the source scope. The generated file is compiled with SDCC into
   `out/<basename>.rel` (no linking). Include directories are passed with `-I`.
 * The generated `out/<basename>.lst` is scanned for `_USED_<name>` symbols.
   Each match produces `#define USED_<name>_FUNCTION 1` in `out/defs.h`.

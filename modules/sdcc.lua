@@ -664,8 +664,6 @@ return {
       collect_contents_interpolation(context, source_object)
       collect_source_metadata(context, source_object)
       write_source_file(source_object)
-      local lst_path = compile_source(source_object)
-      write_used_defs(lst_path)
     end)
     restore_variables(saved_variables)
     if not succeeded then

@@ -139,8 +139,9 @@ compilations use `-m<name>` (for example, `sdcc::target z80` produces `-mz80`).
   contents.
 * Every generated source begins with `#include "out/translations.h"`, followed
   by any function signatures and then the source contents.
-* When the source scope finishes, the generated file is compiled with SDCC into
-  `out/<basename>.rel` (no linking). Include directories are passed with `-I`.
+* Compilation is triggered by the `sdcc::compile <source-id>` action, not by
+  closing the source scope. The generated file is compiled with SDCC into
+  `out/<basename>.rel` (no linking); include directories are passed with `-I`.
 * The generated `out/<basename>.lst` is scanned for `_USED_<name>` symbols. Each
   match produces `#define USED_<name>_FUNCTION 1` in `out/defs.h`.
 
