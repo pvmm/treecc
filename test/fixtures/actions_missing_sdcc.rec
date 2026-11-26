@@ -1,0 +1,11 @@
+project "Actions missing SDCC test"
+
+ruleset {
+  "shell"
+}
+
+actions {
+  default {
+    sdcc::compile main
+  }
+}

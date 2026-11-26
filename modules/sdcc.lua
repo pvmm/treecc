@@ -759,8 +759,24 @@ return {
     print("sdcc::clean: recognized")
   end,
 
-  ["sdcc::compile"] = function()
-    print("sdcc::compile: recognized")
+  ["sdcc::compile"] = function(command)
+    local source_id = command.args[1] and command.args[1].value
+    if not source_id then
+      error("sdcc::compile requires a source id")
+    end
+    local source_object
+    for _, registered in ipairs(sources) do
+      if registered.id == source_id then
+        source_object = registered
+        break
+      end
+    end
+    if not source_object then
+      error("sdcc::compile: unknown sdcc::source `" .. source_id .. "`")
+    end
+    local lst_path = compile_source(source_object)
+    write_used_defs(lst_path)
+    print("sdcc::compile: " .. source_id)
   end,
 
   ["sdcc::ihx2rom"] = function()

@@ -52,8 +52,14 @@ ctest --test-dir build --output-on-failure
 Run TreeCC with a recipe (`.rec`) followed by a definitions file (`.def`):
 
 ```sh
-build/treecc sample.rec functions.def
+build/treecc sample.rec functions.def [rule]
 ```
+
+The optional `rule` selects an action rule from the recipe's `actions` block;
+it defaults to `default`. Rules are executed after the recipe is parsed.
+`include <rule>` inside a rule runs that other rule completely before
+continuing. Commands such as `sdcc::compile` must belong to a loaded ruleset
+(for example, `sdcc-4.2.0`); otherwise running the rule fails.
 
 The SDCC module requires a working `sdcc` executable on `PATH`, or a directory
 containing it configured in `~/.config/treecc`:
@@ -66,21 +72,33 @@ path = /path/to/sdcc/bin
 ## Extensions
 
 Modules listed in a recipe's `ruleset` provide handlers for namespaced
-commands. Dynamic modules are shared libraries named
-`libtreecc-module-<ruleset-name>.so`, loaded from beside the app or from
-directories in the colon-separated `TREECC_MODULE_PATH`. They implement the
-ABI declared in [include/treecc/module.h](./include/treecc/module.h).
+commands. A plain string loads a dynamic module named
+`libtreecc-module-<name>.so`, loaded from beside the app or from directories in
+the colon-separated `TREECC_MODULE_PATH`. They implement the ABI declared in
+[include/treecc/module.h](./include/treecc/module.h). A mapping such as
+`"sdcc-4.2.0": sdcc` loads a module and aliases it to the `sdcc` namespace, so
+`sdcc::*` commands become available.
 
-Lua is embedded in the application. Lua command handlers are loaded from
-`lua.lua`, and the `sdcc-bundle-4.2.0` ruleset loads SDCC handlers from
-`sdcc.lua`. Each script returns a table of handler functions, which receive
-the parsed command as a Lua node table.
+Lua is embedded in the application. The built-in `actions.lua` module is always
+loaded and implements rule selection. Lua command handlers are loaded from
+`lua.lua`, and the `sdcc-4.2.0` alias (or the legacy `sdcc-bundle-4.2.0`) loads
+SDCC handlers from `sdcc.lua`. Each script returns a table of handler functions,
+which receive the parsed command as a Lua node table.
+
+## Actions module
+
+An `actions` block defines rules such as `clean`, `default`, and `run`. The
+third CLI argument selects which rule to run (default: `default`). Only the
+selected rule's commands are executed; `include <rule>` runs that rule fully
+before continuing with the next command in the current rule. Commands with an
+unloaded namespace cause the run to fail.
 
 ## SDCC module rules
 
-The SDCC module is loaded when `ruleset` lists `sdcc-bundle-4.2.0`. The
-compiler executable is found first through `~/.config/treecc` (`[sdcc]` section,
-`path` key) and then through `PATH`.
+The SDCC module is loaded when `ruleset` lists `sdcc-4.2.0` (aliased to `sdcc`)
+or the legacy `sdcc-bundle-4.2.0`. The compiler executable is found first
+through `~/.config/treecc` (`[sdcc]` section, `path` key) and then through
+`PATH`.
 
 ### Target
 
@@ -125,6 +143,14 @@ compilations use `-m<name>` (for example, `sdcc::target z80` produces `-mz80`).
   `out/<basename>.rel` (no linking). Include directories are passed with `-I`.
 * The generated `out/<basename>.lst` is scanned for `_USED_<name>` symbols. Each
   match produces `#define USED_<name>_FUNCTION 1` in `out/defs.h`.
+
+### Commands
+
+* `sdcc::compile <source-id>` finds the `sdcc::source` with that ID and calls
+  `sdcc -m<target>` with the source's `filename`, producing
+  `out/<basename>.rel` and updating `out/defs.h` from the `.lst`.
+* `sdcc::clean`, `sdcc::link`, `sdcc::ihx2rom`, `sdcc::openmsx`, and
+  `sdcc::optional` are placeholders that print a recognition message.
 
 ## Tree-sitter
 

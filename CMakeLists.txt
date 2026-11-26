@@ -55,6 +55,7 @@ endfunction()
 
 add_treecc_module(treecc_module_shell modules/shell.cpp "treecc-module-shell")
 configure_file(modules/lua.lua "${CMAKE_CURRENT_BINARY_DIR}/lua.lua" COPYONLY)
+configure_file(modules/actions.lua "${CMAKE_CURRENT_BINARY_DIR}/actions.lua" COPYONLY)
 configure_file(modules/sdcc.lua "${CMAKE_CURRENT_BINARY_DIR}/sdcc.lua" COPYONLY)
 
 include(CTest)
@@ -252,6 +253,56 @@ if(BUILD_TESTING)
   set_tests_properties(lua_node_handler PROPERTIES
     PASS_REGULAR_EXPRESSION "Lua handled lua::greet: TreeCC"
   )
+  add_test(
+    NAME actions_default
+    COMMAND "$<TARGET_FILE:treecc>"
+      "${CMAKE_CURRENT_SOURCE_DIR}/sample.rec"
+      "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
+  )
+  set_tests_properties(actions_default PROPERTIES
+    PASS_REGULAR_EXPRESSION "sdcc::compile: main"
+    FAIL_REGULAR_EXPRESSION "sdcc::clean: recognized"
+  )
+  add_test(
+    NAME actions_clean
+    COMMAND "$<TARGET_FILE:treecc>"
+      "${CMAKE_CURRENT_SOURCE_DIR}/sample.rec"
+      "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
+      "clean"
+  )
+  set_tests_properties(actions_clean PROPERTIES
+    PASS_REGULAR_EXPRESSION "sdcc::clean: recognized"
+    FAIL_REGULAR_EXPRESSION "sdcc::compile: main"
+  )
+  add_test(
+    NAME actions_run
+    COMMAND "$<TARGET_FILE:treecc>"
+      "${CMAKE_CURRENT_SOURCE_DIR}/sample.rec"
+      "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
+      "run"
+  )
+  set_tests_properties(actions_run PROPERTIES
+    PASS_REGULAR_EXPRESSION "sdcc::openmsx: recognized"
+  )
+  add_test(
+    NAME actions_unknown_rule
+    COMMAND "$<TARGET_FILE:treecc>"
+      "${CMAKE_CURRENT_SOURCE_DIR}/sample.rec"
+      "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
+      "nonexistent"
+  )
+  set_tests_properties(actions_unknown_rule PROPERTIES
+    WILL_FAIL TRUE
+  )
+  add_test(
+    NAME actions_missing_sdcc
+    COMMAND "$<TARGET_FILE:treecc>"
+      "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/actions_missing_sdcc.rec"
+      "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
+  )
+  set_tests_properties(actions_missing_sdcc PROPERTIES
+    WILL_FAIL TRUE
+  )
   foreach(test_name IN ITEMS
       parse_examples
       sdcc_source_context
@@ -265,6 +316,11 @@ if(BUILD_TESTING)
       sdcc_empty_attributes
       sdcc_config_path
       sdcc_missing_from_path
+      actions_default
+      actions_clean
+      actions_run
+      actions_unknown_rule
+      actions_missing_sdcc
   )
     set(test_working_directory "${CMAKE_CURRENT_BINARY_DIR}/test-work/${test_name}")
     file(MAKE_DIRECTORY "${test_working_directory}/include")

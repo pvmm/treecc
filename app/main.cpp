@@ -162,9 +162,11 @@ class ModuleManager {
   bool load_from_ruleset(TSNode root, const std::string &source,
                          const std::filesystem::path &executable_path) {
     std::vector<std::string> modules;
-    collect_modules(root, source, modules);
+    std::unordered_map<std::string, std::string> aliases;
+    collect_modules(root, source, modules, aliases);
     builtin_lua_requested_ = false;
     sdcc_module_requested_ = false;
+    sdcc_namespace_ = "sdcc";
 
     std::vector<std::filesystem::path> search_paths{
         executable_path.parent_path()};
@@ -189,8 +191,12 @@ class ModuleManager {
         builtin_lua_requested_ = true;
         continue;
       }
-      if (module == "sdcc-bundle-4.2.0") {
+      if (module == "sdcc-bundle-4.2.0" || module == "sdcc-4.2.0") {
         sdcc_module_requested_ = true;
+        const auto alias = aliases.find(module);
+        if (alias != aliases.end()) {
+          sdcc_namespace_ = alias->second;
+        }
         continue;
       }
       if (!load_module(module, search_paths)) {
@@ -207,6 +213,8 @@ class ModuleManager {
   bool builtin_lua_requested() const { return builtin_lua_requested_; }
 
   bool sdcc_module_requested() const { return sdcc_module_requested_; }
+
+  const std::string &sdcc_namespace() const { return sdcc_namespace_; }
 
   bool initialize_builtin_lua() {
     if (treecc_initialize_lua_module_v1() != 0) {
@@ -257,9 +265,27 @@ class ModuleManager {
     }
   }
 
+  static std::string value_text(TSNode node, const std::string &source) {
+    if (ts_node_is_null(node)) {
+      return {};
+    }
+    TSNode value = node;
+    if (std::string(ts_node_type(value)) == "argument") {
+      value = argument_value(value);
+    }
+    if (ts_node_is_null(value)) {
+      return {};
+    }
+    if (std::string(ts_node_type(value)) == "string") {
+      return string_value(value, source);
+    }
+    return node_text(value, source);
+  }
+
   static void collect_ruleset_modules(
       TSNode ruleset, const std::string &source,
       std::vector<std::string> &modules,
+      std::unordered_map<std::string, std::string> &aliases,
       std::unordered_set<std::string> &seen) {
     for (uint32_t i = 0; i < ts_node_named_child_count(ruleset); ++i) {
       TSNode value = ts_node_named_child(ruleset, i);
@@ -273,15 +299,23 @@ class ModuleManager {
         add_module(string_value(value, source), modules, seen);
       } else if (std::string(ts_node_type(value)) == "mapping" &&
                  ts_node_named_child_count(value) >= 1) {
-        const TSNode key_argument = ts_node_named_child(value, 0);
-        add_module(string_value(argument_value(key_argument), source), modules,
-                   seen);
+        const std::string name =
+            value_text(ts_node_named_child(value, 0), source);
+        add_module(name, modules, seen);
+        if (ts_node_named_child_count(value) >= 2) {
+          const std::string alias =
+              value_text(ts_node_named_child(value, 1), source);
+          if (!alias.empty()) {
+            aliases[name] = alias;
+          }
+        }
       }
     }
   }
 
   static void collect_modules(TSNode node, const std::string &source,
-                              std::vector<std::string> &modules) {
+                              std::vector<std::string> &modules,
+                              std::unordered_map<std::string, std::string> &aliases) {
     std::unordered_set<std::string> seen;
     std::function<void(TSNode)> visit = [&](TSNode current) {
       if (std::string(ts_node_type(current)) == "function_call") {
@@ -293,7 +327,7 @@ class ModuleManager {
             const TSNode context = argument_value(ts_node_named_child(current, i));
             if (!ts_node_is_null(context) &&
                 std::string(ts_node_type(context)) == "context") {
-              collect_ruleset_modules(context, source, modules, seen);
+              collect_ruleset_modules(context, source, modules, aliases, seen);
             }
           }
         }
@@ -383,35 +417,41 @@ class ModuleManager {
   std::vector<void *> handles_;
   bool builtin_lua_requested_ = false;
   bool sdcc_module_requested_ = false;
+  std::string sdcc_namespace_ = "sdcc";
 };
 
 bool dispatch_commands(TSNode node, const std::string &source,
                        const ModuleManager &modules, const std::string &path) {
   bool success = true;
+  bool handled_actions = false;
   if (std::string(ts_node_type(node)) == "function_call") {
     const TSNode function = ts_node_child_by_field_name(node, "function", 8);
     if (!ts_node_is_null(function)) {
       const std::string name = node_text(function, source);
-      if (name.find("::") != std::string::npos) {
-        const auto handler = modules.find(name);
-        if (handler == nullptr) {
-          std::cerr << path << ':' << ts_node_start_point(node).row + 1
-                    << ": no loaded module registered command `" << name
-                    << "`\n";
-          success = false;
-        } else if (handler(node, source.data(),
-                           static_cast<std::uint32_t>(source.size())) != 0) {
+      const auto handler = modules.find(name);
+      if (handler != nullptr) {
+        if (handler(node, source.data(),
+                    static_cast<std::uint32_t>(source.size())) != 0) {
           std::cerr << path << ':' << ts_node_start_point(node).row + 1
                     << ": command `" << name << "` failed\n";
           success = false;
         }
+        handled_actions = name == "actions";
+      } else if (name.find("::") != std::string::npos) {
+        std::cerr << path << ':' << ts_node_start_point(node).row + 1
+                  << ": no loaded module registered command `" << name
+                  << "`\n";
+        success = false;
       }
     }
   }
 
-  for (uint32_t i = 0; i < ts_node_child_count(node); ++i) {
-    success = dispatch_commands(ts_node_child(node, i), source, modules, path) &&
-              success;
+  if (!handled_actions) {
+    for (uint32_t i = 0; i < ts_node_child_count(node); ++i) {
+      success =
+          dispatch_commands(ts_node_child(node, i), source, modules, path) &&
+          success;
+    }
   }
   return success;
 }
@@ -440,9 +480,9 @@ bool contains_command_prefix(TSNode node, const std::string &source,
 
 int main(int argc, char **argv) {
   LuaModuleGuard lua_module_guard;
-  if (argc != 3) {
+  if (argc < 3 || argc > 4) {
     std::cerr << "Usage: " << argv[0]
-              << " <recipe.rec> <definitions.def>\n";
+              << " <recipe.rec> <definitions.def> [rule]\n";
     return 2;
   }
 
@@ -495,8 +535,13 @@ int main(int argc, char **argv) {
       modules.builtin_lua_requested() ||
       contains_command_prefix(recipe_root, recipe->source, "lua::") ||
       contains_command_prefix(definitions_root, definitions->source, "lua::");
-  if ((lua_handlers_requested || modules.sdcc_module_requested()) &&
-      !modules.initialize_builtin_lua()) {
+  if (!modules.initialize_builtin_lua()) {
+    return 1;
+  }
+  treecc_set_rule_v1(argc == 4 ? argv[3] : "default");
+  if (!modules.load_builtin_lua_handlers(executable_path.parent_path() /
+                                             "actions.lua",
+                                         "")) {
     return 1;
   }
   if (lua_handlers_requested &&
@@ -508,7 +553,7 @@ int main(int argc, char **argv) {
   if (modules.sdcc_module_requested() &&
       !modules.load_builtin_lua_handlers(executable_path.parent_path() /
                                              "sdcc.lua",
-                                         "sdcc")) {
+                                         modules.sdcc_namespace().c_str())) {
     return 1;
   }
 

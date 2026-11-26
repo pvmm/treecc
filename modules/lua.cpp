@@ -11,6 +11,43 @@ namespace {
 
 lua_State *lua = nullptr;
 int handlers_reference = LUA_NOREF;
+std::string rule_name;
+
+int set_rule(lua_State *state) {
+  rule_name = luaL_checkstring(state, 1);
+  return 0;
+}
+
+int get_rule(lua_State *state) {
+  lua_pushstring(state, rule_name.c_str());
+  return 1;
+}
+
+int call_handler(lua_State *state) {
+  if (lua == nullptr || handlers_reference == LUA_NOREF) {
+    lua_pushboolean(state, 0);
+    return 1;
+  }
+  const char *name = luaL_checkstring(state, 1);
+  luaL_checktype(state, 2, LUA_TTABLE);
+
+  lua_rawgeti(state, LUA_REGISTRYINDEX, handlers_reference);
+  lua_getfield(state, -1, name);
+  lua_remove(state, -2);
+  if (!lua_isfunction(state, -1)) {
+    lua_pop(state, 1);
+    return luaL_error(state, "no handler registered for command `%s`", name);
+  }
+
+  lua_pushvalue(state, 2);
+  if (lua_pcall(state, 1, 1, 0) != LUA_OK) {
+    return lua_error(state);
+  }
+  const bool succeeded = !lua_isboolean(state, -1) || lua_toboolean(state, -1);
+  lua_pop(state, 1);
+  lua_pushboolean(state, succeeded ? 1 : 0);
+  return 1;
+}
 
 int create_parent_directories(lua_State *state) {
   std::size_t path_length = 0;
@@ -180,10 +217,12 @@ bool register_handlers(const TreeCCModuleRegistryV1 *registry,
     }
 
     const std::string handler_name(name, name_length);
+    const bool namespaced = handler_name.find("::") != std::string::npos;
+    const bool bare = default_namespace == nullptr || default_namespace[0] == '\0';
     const std::string command_name =
-        handler_name.find("::") == std::string::npos
-            ? std::string(default_namespace) + "::" + handler_name
-            : handler_name;
+        namespaced || bare
+            ? handler_name
+            : std::string(default_namespace) + "::" + handler_name;
     if (registry->register_command(registry->userdata, command_name.c_str(),
                                    dispatch_to_lua) != 0) {
       std::cerr << "failed to register Lua handler `" << command_name << "`\n";
@@ -217,10 +256,20 @@ extern "C" int treecc_initialize_lua_module_v1(void) {
   lua_newtable(lua);
   lua_pushcfunction(lua, create_parent_directories);
   lua_setfield(lua, -2, "create_parent_directories");
+  lua_pushcfunction(lua, set_rule);
+  lua_setfield(lua, -2, "set_rule");
+  lua_pushcfunction(lua, get_rule);
+  lua_setfield(lua, -2, "rule");
+  lua_pushcfunction(lua, call_handler);
+  lua_setfield(lua, -2, "call_handler");
   lua_setglobal(lua, "treecc");
   lua_newtable(lua);
   handlers_reference = luaL_ref(lua, LUA_REGISTRYINDEX);
   return 0;
+}
+
+extern "C" void treecc_set_rule_v1(const char *rule) {
+  rule_name = rule == nullptr ? "" : rule;
 }
 
 extern "C" int treecc_load_lua_handlers_v1(

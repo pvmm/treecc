@@ -3,7 +3,7 @@ target "main.rom"
 
 ruleset {
 	"shell"
-	"sdcc-bundle-4.2.0": sdcc
+	"sdcc-4.2.0": sdcc
 }
 
 sdcc::target z80
