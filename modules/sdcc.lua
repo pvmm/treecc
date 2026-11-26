@@ -47,9 +47,12 @@ local function is_working_sdcc(path)
   return succeeded == true
 end
 
+local sdcc_executable
+
 local function bootstrap()
   local configured_path = configured_sdcc_path()
   if configured_path and is_working_sdcc(configured_path) then
+    sdcc_executable = configured_path .. "/sdcc"
     return
   end
 
@@ -67,6 +70,7 @@ local function bootstrap()
     end
     error("SDCC compiler 'sdcc' was not found in PATH")
   end
+  sdcc_executable = executable
 end
 
 bootstrap()
@@ -74,6 +78,7 @@ bootstrap()
 local functions = {}
 local sources = {}
 local variables = {}
+local used_symbols = {}
 local attributes = {
   [".OPTIONAL"] = true,
   [".SIZE"] = true,
@@ -234,6 +239,20 @@ local function collect_asm_sources(node, function_object)
   end
   for _, child in ipairs(node.children) do
     collect_asm_sources(child, function_object)
+  end
+end
+
+local function collect_signature(node, function_object)
+  if node.type == "function_call" and node.name == "signature" then
+    local signature = node.args[1] and node.args[1].value
+    if not signature then
+      error("signature requires a string")
+    end
+    function_object.signature = signature
+    print("sdcc::signature: " .. signature)
+  end
+  for _, child in ipairs(node.children) do
+    collect_signature(child, function_object)
   end
 end
 
@@ -440,12 +459,22 @@ local function write_source_file(source_object)
     error("could not create parent directories for `" ..
       source_object.filename .. "`: " .. directory_error)
   end
+  local signatures = {}
+  for _, function_object in ipairs(functions) do
+    if function_object.signature then
+      table.insert(signatures, function_object.signature)
+    end
+  end
+  local content = source_object.contents
+  if #signatures > 0 then
+    content = table.concat(signatures, "\n") .. "\n" .. content
+  end
   local output, open_error = io.open(source_object.filename, "wb")
   if not output then
     error("could not open `" .. source_object.filename ..
       "` for writing: " .. open_error)
   end
-  local written, write_error = output:write(source_object.contents)
+  local written, write_error = output:write(content)
   if not written then
     output:close()
     error("could not write to `" .. source_object.filename ..
@@ -457,6 +486,85 @@ local function write_source_file(source_object)
       "`: " .. close_error)
   end
   print("sdcc::source file: created " .. source_object.filename)
+end
+
+local function source_basename(filename)
+  local base = filename:match("([^/\\]+)$") or filename
+  return base:match("^(.*)%.[^.]+$") or base
+end
+
+local function compile_source(source_object)
+  local out_dir = "out"
+  local base = source_basename(source_object.filename)
+  local rel_path = out_dir .. "/" .. base .. ".rel"
+  local directories_created, directory_error =
+    treecc.create_parent_directories(rel_path)
+  if not directories_created then
+    error("could not create parent directories for `" .. rel_path .. "`: " ..
+      directory_error)
+  end
+
+  local command = shell_quote(sdcc_executable) .. " -c"
+  for _, include_dir in ipairs(source_object.include_dirs) do
+    command = command .. " -I" .. shell_quote(include_dir)
+  end
+  command = command .. " -o " .. shell_quote(rel_path) ..
+    " " .. shell_quote(source_object.filename)
+
+  local handle = io.popen(command .. " 2>&1", "r")
+  if not handle then
+    error("could not execute SDCC compiler")
+  end
+  local output = handle:read("*a") or ""
+  local ok, reason, status = handle:close()
+  if ok ~= true then
+    local exit_code = status or reason or "unknown"
+    error("SDCC compilation failed for `" .. source_object.filename ..
+      "` (exit " .. tostring(exit_code) .. "): " .. output)
+  end
+  print("sdcc::source compiled: " .. rel_path)
+  return out_dir .. "/" .. base .. ".lst"
+end
+
+local function write_used_defs(lst_path)
+  local content = ""
+  local input = io.open(lst_path, "r")
+  if input then
+    content = input:read("*a") or ""
+    input:close()
+  end
+
+  for _, function_object in ipairs(functions) do
+    local symbol = "_USED_" .. function_object.name:upper()
+    if not used_symbols[symbol] and content:find(symbol, 1, true) then
+      used_symbols[symbol] = true
+      table.insert(used_symbols, symbol)
+    end
+  end
+
+  local defs_path = "out/defs.h"
+  local directories_created, directory_error =
+    treecc.create_parent_directories(defs_path)
+  if not directories_created then
+    error("could not create parent directories for `" .. defs_path .. "`: " ..
+      directory_error)
+  end
+  local output, open_error = io.open(defs_path, "wb")
+  if not output then
+    error("could not open `" .. defs_path .. "` for writing: " .. open_error)
+  end
+  for _, symbol in ipairs(used_symbols) do
+    local written, write_error = output:write("#define " .. symbol .. " 1\n")
+    if not written then
+      output:close()
+      error("could not write to `" .. defs_path .. "`: " .. write_error)
+    end
+  end
+  local closed, close_error = output:close()
+  if not closed then
+    error("could not finish writing `" .. defs_path .. "`: " .. close_error)
+  end
+  print("sdcc::defs: " .. defs_path .. " [" .. table.concat(used_symbols, ", ") .. "]")
 end
 
 local function write_asm_source(function_object, path)
@@ -507,6 +615,8 @@ return {
       collect_contents_interpolation(context, source_object)
       collect_source_metadata(context, source_object)
       write_source_file(source_object)
+      local lst_path = compile_source(source_object)
+      write_used_defs(lst_path)
     end)
     restore_variables(saved_variables)
     if not succeeded then
@@ -537,6 +647,7 @@ return {
       trim_contents = nil,
       contents_interpolation = true,
       contents = "",
+      signature = nil,
     }
     local context = command.args[2]
     if context then
@@ -545,6 +656,7 @@ return {
       variables[variable_name] = name
       local succeeded, failure = pcall(function()
         process_context(context)
+        collect_signature(context, function_object)
         collect_asm_sources(context, function_object)
         collect_attributes(context, function_object)
         collect_delimiters(context, function_object)

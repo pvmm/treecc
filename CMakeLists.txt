@@ -108,6 +108,10 @@ if(BUILD_TESTING)
       "-DWORKING_DIRECTORY=${CMAKE_CURRENT_BINARY_DIR}/sdcc-source-file"
       -P "${CMAKE_CURRENT_SOURCE_DIR}/test/check_sdcc_source_file.cmake"
   )
+  set_tests_properties(sdcc_source_file PROPERTIES
+    ENVIRONMENT
+      "PATH=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/fake-bin;HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
+  )
   add_test(
     NAME sdcc_trim_contents
     COMMAND "${CMAKE_COMMAND}"
@@ -116,6 +120,10 @@ if(BUILD_TESTING)
       "-DDEFINITIONS=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
       "-DWORKING_DIRECTORY=${CMAKE_CURRENT_BINARY_DIR}/sdcc-trim-contents"
       -P "${CMAKE_CURRENT_SOURCE_DIR}/test/check_sdcc_trim_contents.cmake"
+  )
+  set_tests_properties(sdcc_trim_contents PROPERTIES
+    ENVIRONMENT
+      "PATH=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/fake-bin;HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
   )
   add_test(
     NAME sdcc_append_to

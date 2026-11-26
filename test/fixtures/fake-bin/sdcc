@@ -2,4 +2,45 @@
 if [ "$1" = "--version" ]; then
   exit 0
 fi
+
+output=""
+c_mode=0
+for arg in "$@"; do
+  if [ "$arg" = "-c" ]; then
+    c_mode=1
+  fi
+done
+
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "-o" ]; then
+    output="$arg"
+    prev=""
+    continue
+  fi
+  if [ "$arg" = "-o" ]; then
+    prev="-o"
+    continue
+  fi
+done
+
+if [ "$c_mode" = "1" ]; then
+  if [ -z "$output" ]; then
+    exit 1
+  fi
+  dir=$(dirname "$output")
+  mkdir -p "$dir"
+  base="$output"
+  case "$base" in
+    *.rel) base="${base%.rel}" ;;
+  esac
+  : > "${base}.rel"
+  if [ -n "$FAKE_SDCC_LST_CONTENT" ]; then
+    printf '%s\n' "$FAKE_SDCC_LST_CONTENT" > "${base}.lst"
+  else
+    : > "${base}.lst"
+  fi
+  exit 0
+fi
+
 exit 1

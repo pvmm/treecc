@@ -6,6 +6,8 @@ ruleset {
 	"sdcc-bundle-4.2.0": sdcc
 }
 
+sdcc::target z80
+
 sdcc::function print_string {
 	variable $name "Pedro"
 	debug "Hello, $name!"
@@ -13,6 +15,7 @@ sdcc::function print_string {
 	//sdcc::language assembly                         // optional because file type ends in ".asm")
 	attributes [ .OPTIONAL .SIZE ]                  // if ".OPTIONAL" is set, function usage is verified and may not be included in compilation
 	delimiters [ "---------------" ]
+	signature "void $sdcc::function(char* s);"
 	contents:
 ---------------
 CHPUT = #0x00A2
@@ -35,13 +38,15 @@ sdcc::source main {
 	variable $romfile "main.rom"
 
 	delimiters [ "{{" "}}" ]
-	trim-contents "both"
+        contents-interpolation true
+	trim-contents both
 	contents {{
 int ${sdcc::source}(void) {
-	printf("Hello, world!\n");
+	print_string("Hello, world!\n");
 loop:
 	goto loop;
 }
+// end of source
 	}}
 
 	attributes: shell::stop-on-error                // opposite: shell::ignore-errors
