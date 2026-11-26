@@ -80,6 +80,7 @@ local functions = {}
 local sources = {}
 local variables = {}
 local used_symbols = {}
+local translations = {}
 local attributes = {
   [".OPTIONAL"] = true,
   [".SIZE"] = true,
@@ -450,6 +451,32 @@ local function restore_variables(saved)
   end
 end
 
+local function write_translations_header()
+  local path = "out/translations.h"
+  local directories_created, directory_error =
+    treecc.create_parent_directories(path)
+  if not directories_created then
+    error("could not create parent directories for `" .. path .. "`: " ..
+      directory_error)
+  end
+  local output, open_error = io.open(path, "wb")
+  if not output then
+    error("could not open `" .. path .. "` for writing: " .. open_error)
+  end
+  local content = #translations > 0
+      and table.concat(translations, "\n") .. "\n" or ""
+  local written, write_error = output:write(content)
+  if not written then
+    output:close()
+    error("could not write to `" .. path .. "`: " .. write_error)
+  end
+  local closed, close_error = output:close()
+  if not closed then
+    error("could not finish writing `" .. path .. "`: " .. close_error)
+  end
+  print("sdcc::translations: " .. path)
+end
+
 local function write_source_file(source_object)
   if not source_object.filename then
     error("sdcc::source requires a filename")
@@ -466,10 +493,11 @@ local function write_source_file(source_object)
       table.insert(signatures, function_object.signature)
     end
   end
-  local content = source_object.contents
+  local content = "#include \"out/translations.h\"\n"
   if #signatures > 0 then
-    content = table.concat(signatures, "\n") .. "\n" .. content
+    content = content .. table.concat(signatures, "\n") .. "\n"
   end
+  content = content .. source_object.contents
   local output, open_error = io.open(source_object.filename, "wb")
   if not output then
     error("could not open `" .. source_object.filename ..
@@ -677,6 +705,9 @@ return {
       end
     end
     table.insert(functions, function_object)
+    table.insert(translations,
+      "#define " .. name .. "(...) _USED_" .. name .. "(__VA_ARGS__)")
+    write_translations_header()
     current_function = function_object
     local names = {}
     for _, registered_function in ipairs(functions) do
