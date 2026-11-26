@@ -143,13 +143,16 @@ compilations use `-m<name>` (for example, `sdcc::target z80` produces `-mz80`).
   closing the source scope. The generated file is compiled with SDCC into
   `out/<basename>.rel` (no linking); include directories are passed with `-I`.
 * The generated `out/<basename>.lst` is scanned for `_USED_<name>` symbols. Each
-  match produces `#define USED_<name>_FUNCTION 1` in `out/defs.h`.
+  match produces `#define USED_<name>_FUNCTION 1` in `out/defs.h` and
+  `.define _USED_<name>_FUNCTION /1/` in `out/defs.asm`, making the usage guard
+  visible to both C and assembly code.
 
 ### Commands
 
 * `sdcc::compile <source-id>` finds the `sdcc::source` with that ID and calls
   `sdcc -m<target>` with the source's `filename`, producing
-  `out/<basename>.rel` and updating `out/defs.h` from the `.lst`.
+  `out/<basename>.rel` and updating `out/defs.h` and `out/defs.asm` from the
+  `.lst`.
 * `sdcc::clean`, `sdcc::link`, `sdcc::ihx2rom`, `sdcc::openmsx`, and
   `sdcc::optional` are placeholders that print a recognition message.
 

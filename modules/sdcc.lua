@@ -591,29 +591,37 @@ local function write_used_defs(lst_path)
     end
   end
 
-  local defs_path = "out/defs.h"
-  local directories_created, directory_error =
-    treecc.create_parent_directories(defs_path)
-  if not directories_created then
-    error("could not create parent directories for `" .. defs_path .. "`: " ..
-      directory_error)
-  end
-  local output, open_error = io.open(defs_path, "wb")
-  if not output then
-    error("could not open `" .. defs_path .. "` for writing: " .. open_error)
-  end
-  for _, symbol in ipairs(used_symbols) do
-    local written, write_error = output:write("#define " .. symbol .. " 1\n")
-    if not written then
-      output:close()
-      error("could not write to `" .. defs_path .. "`: " .. write_error)
+  local function write_defs_file(path, format_line)
+    local directories_created, directory_error =
+      treecc.create_parent_directories(path)
+    if not directories_created then
+      error("could not create parent directories for `" .. path .. "`: " ..
+        directory_error)
     end
+    local output, open_error = io.open(path, "wb")
+    if not output then
+      error("could not open `" .. path .. "` for writing: " .. open_error)
+    end
+    for _, symbol in ipairs(used_symbols) do
+      local written, write_error = output:write(format_line(symbol) .. "\n")
+      if not written then
+        output:close()
+        error("could not write to `" .. path .. "`: " .. write_error)
+      end
+    end
+    local closed, close_error = output:close()
+    if not closed then
+      error("could not finish writing `" .. path .. "`: " .. close_error)
+    end
+    print("sdcc::defs: " .. path .. " [" .. table.concat(used_symbols, ", ") .. "]")
   end
-  local closed, close_error = output:close()
-  if not closed then
-    error("could not finish writing `" .. defs_path .. "`: " .. close_error)
-  end
-  print("sdcc::defs: " .. defs_path .. " [" .. table.concat(used_symbols, ", ") .. "]")
+
+  write_defs_file("out/defs.h", function(symbol)
+    return "#define " .. symbol .. " 1"
+  end)
+  write_defs_file("out/defs.asm", function(symbol)
+    return ".define _" .. symbol .. " /1/"
+  end)
 end
 
 local function write_asm_source(function_object, path)

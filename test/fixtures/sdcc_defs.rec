@@ -1,0 +1,32 @@
+project DefsTest
+target "main.rom"
+
+ruleset {
+	"sdcc-4.2.0": sdcc
+}
+
+sdcc::function example {
+	attributes [ .OPTIONAL ]
+	delimiters [ "---" ]
+	contents:
+---
+nop
+---
+	append-to "stdio.asm"
+}
+
+sdcc::source main {
+	filename "main.c"
+	delimiters [ "{{" "}}" ]
+	contents {{
+int main(void) {
+	return 0;
+}
+	}}
+}
+
+actions {
+	default {
+		sdcc::compile main
+	}
+}

@@ -114,6 +114,19 @@ if(BUILD_TESTING)
       "PATH=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/fake-bin;HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
   )
   add_test(
+    NAME sdcc_defs
+    COMMAND "${CMAKE_COMMAND}"
+      "-DTREECC_EXECUTABLE=$<TARGET_FILE:treecc>"
+      "-DRECIPE=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/sdcc_defs.rec"
+      "-DDEFINITIONS=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
+      "-DWORKING_DIRECTORY=${CMAKE_CURRENT_BINARY_DIR}/sdcc-defs"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/test/check_sdcc_defs.cmake"
+  )
+  set_tests_properties(sdcc_defs PROPERTIES
+    ENVIRONMENT
+      "PATH=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/fake-bin;HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
+  )
+  add_test(
     NAME sdcc_trim_contents
     COMMAND "${CMAKE_COMMAND}"
       "-DTREECC_EXECUTABLE=$<TARGET_FILE:treecc>"
@@ -133,7 +146,7 @@ if(BUILD_TESTING)
       "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
   )
   set_tests_properties(sdcc_append_to PROPERTIES
-    PASS_REGULAR_EXPRESSION "sdcc::append-to: received ./include/stdio\\.asm"
+    PASS_REGULAR_EXPRESSION "sdcc::append-to: received [./include/]*stdio\\.asm"
     ENVIRONMENT
       "PATH=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/fake-bin;HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
   )
