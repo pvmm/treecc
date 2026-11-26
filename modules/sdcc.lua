@@ -568,9 +568,11 @@ local function write_used_defs(lst_path)
 
   for _, function_object in ipairs(functions) do
     local symbol = "_USED_" .. function_object.name
-    if not used_symbols[symbol] and content:find(symbol, 1, true) then
-      used_symbols[symbol] = true
-      table.insert(used_symbols, symbol)
+    -- include "#define _USED_function_FUNCTION 1" for each function
+    local macro = "USED_" .. function_object.name .. "_FUNCTION"
+    if not used_symbols[macro] and content:find(symbol, 1, true) then
+      used_symbols[macro] = true
+      table.insert(used_symbols, macro)
     end
   end
 
