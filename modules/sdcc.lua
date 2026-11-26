@@ -354,7 +354,7 @@ local function collect_contents(node, function_object)
           contents = contents .. "\n"
         end
         function_object.contents =
-          ".ifdef _USED_" .. function_object.name .. "_\n" ..
+          ".ifdef _USED_" .. function_object.name .. "_FUNCTION\n" ..
           contents .. ".endif\n"
         break
       end
