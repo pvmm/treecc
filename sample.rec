@@ -28,7 +28,7 @@ $sdcc::function:
         inc hl              ; Move pointer to the next character
         jr $sdcc::function     ; Repeat the loop
 ---------------
-	append-to "./include/stdio.asm"                 // file to append code to.
+	append-to "stdio.asm"                 // file to append code to.
 }
 
 sdcc::function print_from_c {
@@ -41,7 +41,7 @@ void $sdcc::function(char* s) {
 	(void) s; // no warning
 }
 ---------------
-	append-to "./include/stdio.c"                   // file to append code to.
+	append-to "stdio.c"                   // file to append code to.
 }
 
 sdcc::source main {
@@ -55,7 +55,8 @@ sdcc::source main {
 	trim-contents both
 	contents {{
 int ${sdcc::source}(void) {
-	print_from_asm("Hello, world!\n");
+	print_from_asm("Hello, world from ASM!\n");
+	print_from_c("Hello, world from C!\n");
 loop:
 	goto loop;
 }
