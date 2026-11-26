@@ -332,6 +332,15 @@ local function finalize_contents(owner)
   end
 end
 
+local function is_c_function(function_object)
+  for _, path in ipairs(function_object.append_to) do
+    if path:lower():match("%.c$") then
+      return true
+    end
+  end
+  return false
+end
+
 local function collect_contents(node, function_object)
   if node.type == "blob_property" then
     local blob
@@ -353,9 +362,15 @@ local function collect_contents(node, function_object)
         if contents ~= "" and contents:sub(-1) ~= "\n" then
           contents = contents .. "\n"
         end
-        function_object.contents =
-          ".ifdef _USED_" .. function_object.name .. "_FUNCTION\n" ..
-          contents .. ".endif\n"
+        local open_guard, close_guard
+        if is_c_function(function_object) then
+          open_guard = "#ifdef _USED_" .. function_object.name .. "_FUNCTION\n"
+          close_guard = "#endif\n"
+        else
+          open_guard = ".ifdef _USED_" .. function_object.name .. "_FUNCTION\n"
+          close_guard = ".endif\n"
+        end
+        function_object.contents = open_guard .. contents .. close_guard
         break
       end
     end
