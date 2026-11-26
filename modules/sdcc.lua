@@ -353,7 +353,7 @@ local function collect_contents(node, function_object)
           contents = contents .. "\n"
         end
         function_object.contents =
-          ".ifdef _USED_" .. function_object.name:upper() .. "_\n" ..
+          ".ifdef _USED_" .. function_object.name .. "_\n" ..
           contents .. ".endif\n"
         break
       end
@@ -539,7 +539,7 @@ local function write_used_defs(lst_path)
   end
 
   for _, function_object in ipairs(functions) do
-    local symbol = "_USED_" .. function_object.name:upper()
+    local symbol = "_USED_" .. function_object.name
     if not used_symbols[symbol] and content:find(symbol, 1, true) then
       used_symbols[symbol] = true
       table.insert(used_symbols, symbol)
