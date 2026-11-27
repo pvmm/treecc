@@ -3,6 +3,10 @@ if [ "$1" = "--version" ]; then
   exit 0
 fi
 
+if [ -n "$FAKE_SDCC_LOG" ]; then
+  printf '%s\n' "$*" >> "$FAKE_SDCC_LOG"
+fi
+
 output=""
 c_mode=0
 for arg in "$@"; do
@@ -40,6 +44,17 @@ if [ "$c_mode" = "1" ]; then
   else
     : > "${base}.lst"
   fi
+  exit 0
+fi
+
+if [ -n "$output" ]; then
+  dir=$(dirname "$output")
+  mkdir -p "$dir"
+  base="$output"
+  case "$base" in
+    *.ihx) base="${base%.ihx}" ;;
+  esac
+  : > "${base}.ihx"
   exit 0
 fi
 

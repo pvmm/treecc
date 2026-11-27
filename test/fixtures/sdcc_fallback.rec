@@ -1,0 +1,7 @@
+project "Fallback test"
+
+ruleset {
+  "sdcc-bundle-4.2.0": sdcc
+}
+
+sdcc::target z80

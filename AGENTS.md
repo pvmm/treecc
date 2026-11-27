@@ -25,12 +25,19 @@ before changing the parser, SDCC handlers, or the actions module.
 ## SDCC module
 
 The compiler executable is found through `~/.config/treecc` (`[sdcc]` section,
-`path` key) and then through `PATH`.
+`path` key), then through `PATH`, and finally falls back to
+`/usr/libexec/sdcc/sdcc`.
 
 ### Target
 
 `sdcc::target <name>` sets the active compiler target. Subsequent SDCC
 compilations use `-m<name>` (for example, `sdcc::target z80` → `-mz80`).
+
+### Link options
+
+`sdcc::link_opt [ <option> ... ]` registers additional SDCC link parameters.
+For example, `sdcc::link_opt [ --no-std-crt0 ]` makes every later
+`sdcc::link` pass `--no-std-crt0` to SDCC.
 
 ### Source scope (`sdcc::source`)
 
@@ -46,9 +53,11 @@ compilations use `-m<name>` (for example, `sdcc::target z80` → `-mz80`).
   closing the source scope. The generated file is compiled with SDCC into
   `out/<basename>.rel` (no linking). Include directories are passed with `-I`.
 * The generated `out/<basename>.lst` is scanned for `_USED_<name>` symbols.
-  Each match produces `#define _USED_<name>_FUNCTION 1` in `out/defs.h` and
-  `.define _USED_<name>_FUNCTION /1/` in `out/defs.asm`, so C and assembly
-  code can both test the usage guard.
+  A function's language is remembered from its `append-to` path: a `.c` path
+  means C, anything else means assembly. Each match produces
+  `#define _USED_<name>_FUNCTION 1` in `out/defs.h` only for C functions and
+  `.define _USED_<name>_FUNCTION /1/` in `out/defs.asm` only for assembly
+  functions, so both kinds of code can test the usage guard.
 
 ### Function scope (`sdcc::function`)
 
@@ -66,21 +75,37 @@ compilations use `-m<name>` (for example, `sdcc::target z80` → `-mz80`).
   include: `#include "out/translations.h"` for C and
   `.include "out/translations.asm"` for assembly. When an optional function is
   registered, `out/translations.asm` is generated with one
-  `.define <name> /_USED_<name>/` line per optional function.
+  `.define <name> /__USED_<name>/` line per optional function. The double
+  underscore matches SDCC's C-to-assembly symbol mangling of `_USED_<name>`.
+* Assembly functions emit `.globl <name>` before their label so the symbol is
+  exported to the linker; keyword substitution renames it to `__USED_<name>`.
 * With `.OPTIONAL`, contents are wrapped in a usage guard:
   * C: `#ifdef _USED_<name>_FUNCTION` / `#endif`
   * Assembly: `.ifdef _USED_<name>_FUNCTION` / `.endif`
   The function name keeps its declared case; only `_USED_` is uppercase.
 * Each function contributes
   `#define <name>(...) _USED_<name>(__VA_ARGS__)` to `out/translations.h`.
+* `out/defs.h` and `out/translations.h` always begin with `#pragma once`.
+  `out/defs.asm` and `out/translations.asm` use equivalent ASxxxx include
+  guards (`.ifndef` / `.define` / `.endif`).
 
 ### Commands
 
 * `sdcc::compile <source-id>` finds the `sdcc::source` with that ID and calls
   `sdcc -m<target>` with its `filename`, producing `out/<basename>.rel` and
   updating `out/defs.h` and `out/defs.asm` from the `.lst`.
-* `sdcc::clean`, `sdcc::link`, `sdcc::ihx2rom`, `sdcc::openmsx`, and
-  `sdcc::optional` are command placeholders that print a recognition message.
+* `sdcc::link <source-id-or-.rel>` invokes `sdcc -m<target>` with the source's
+  `out/<basename>.rel` (or the given `.rel` path) plus the inputs from every
+  `append-to` path declared by `sdcc::function` nodes: `.c` files are compiled
+  separately to `out/<basename>_c.rel`, and `.asm` files are first assembled to
+  `out/<basename>.rel` with the matching SDCC assembler (`sdasz80` for Z80
+  targets). Only `.rel` files are passed to the linker, so SDCC cannot
+  overwrite the main object while compiling function sources. It writes
+  `out/<basename>.ihx`. Source include directories are passed with `-I`.
+* Compilation, assembly, and linking commands are echoed to stderr before they
+  run, to make build debugging easier.
+* `sdcc::clean`, `sdcc::ihx2rom`, `sdcc::openmsx`, and `sdcc::optional` are
+  command placeholders that print a recognition message.
 
 ## Actions module
 

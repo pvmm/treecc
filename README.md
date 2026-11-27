@@ -30,8 +30,8 @@ implemented.
 TreeCC is an early-stage implementation. The current app parses its input,
 loads Lua handlers and dynamic modules, and collects some SDCC function
 metadata. Full language evaluation, variable and context semantics, and
-execution of build actions are not implemented yet; compiler operations such
-as compile and link are placeholders.
+execution of build actions are not implemented yet; some compiler operations
+such as clean and ihx2rom are still placeholders.
 
 ## Build and run
 
@@ -61,8 +61,9 @@ it defaults to `default`. Rules are executed after the recipe is parsed.
 continuing. Commands such as `sdcc::compile` must belong to a loaded ruleset
 (for example, `sdcc-4.2.0`); otherwise running the rule fails.
 
-The SDCC module requires a working `sdcc` executable on `PATH`, or a directory
-containing it configured in `~/.config/treecc`:
+The SDCC module requires a working `sdcc` executable on `PATH`, a directory
+containing it configured in `~/.config/treecc`, or the system installation at
+`/usr/libexec/sdcc/sdcc`:
 
 ```ini
 [sdcc]
@@ -97,13 +98,19 @@ unloaded namespace cause the run to fail.
 
 The SDCC module is loaded when `ruleset` lists `sdcc-4.2.0` (aliased to `sdcc`)
 or the legacy `sdcc-bundle-4.2.0`. The compiler executable is found first
-through `~/.config/treecc` (`[sdcc]` section, `path` key) and then through
-`PATH`.
+through `~/.config/treecc` (`[sdcc]` section, `path` key), then through `PATH`,
+and finally falls back to `/usr/libexec/sdcc/sdcc`.
 
 ### Target
 
 `sdcc::target <name>` sets the active compiler target. All subsequent SDCC
 compilations use `-m<name>` (for example, `sdcc::target z80` produces `-mz80`).
+
+### Link options
+
+`sdcc::link_opt [ <option> ... ]` registers additional SDCC link parameters.
+For example, `sdcc::link_opt [ --no-std-crt0 ]` makes every later `sdcc::link`
+pass `--no-std-crt0` to SDCC.
 
 ### Function scope (`sdcc::function`)
 
@@ -126,7 +133,10 @@ compilations use `-m<name>` (for example, `sdcc::target z80` produces `-mz80`).
   `#include "out/translations.h"` for C or
   `.include "out/translations.asm"` for assembly. Registering an optional
   function also generates `out/translations.asm`, containing one
-  `.define <name> /_USED_<name>/` line per optional function.
+  `.define <name> /__USED_<name>/` line per optional function. The double
+  underscore matches SDCC's C-to-assembly mangling of `_USED_<name>`.
+* Assembly functions emit `.globl <name>` before their label so the symbol is
+  exported to the linker; keyword substitution renames it to `__USED_<name>`.
 * When `.OPTIONAL` is enabled, the contents are enclosed in a usage guard:
   * C functions: `#ifdef _USED_<name>_FUNCTION` / `#endif`
   * Assembly functions: `.ifdef _USED_<name>_FUNCTION` / `.endif`
@@ -134,6 +144,9 @@ compilations use `-m<name>` (for example, `sdcc::target z80` produces `-mz80`).
   uppercase.
 * Each function also contributes the line
   `#define <name>(...) _USED_<name>(__VA_ARGS__)` to `out/translations.h`.
+* `out/defs.h` and `out/translations.h` always begin with `#pragma once`.
+  `out/defs.asm` and `out/translations.asm` use equivalent ASxxxx include
+  guards (`.ifndef` / `.define` / `.endif`).
 
 ### Source scope (`sdcc::source`)
 
@@ -150,10 +163,12 @@ compilations use `-m<name>` (for example, `sdcc::target z80` produces `-mz80`).
 * Compilation is triggered by the `sdcc::compile <source-id>` action, not by
   closing the source scope. The generated file is compiled with SDCC into
   `out/<basename>.rel` (no linking); include directories are passed with `-I`.
-* The generated `out/<basename>.lst` is scanned for `_USED_<name>` symbols. Each
-  match produces `#define _USED_<name>_FUNCTION 1` in `out/defs.h` and
-  `.define _USED_<name>_FUNCTION /1/` in `out/defs.asm`, making the usage guard
-  visible to both C and assembly code.
+* The generated `out/<basename>.lst` is scanned for `_USED_<name>` symbols. A
+  function's language is remembered from its `append-to` path: a `.c` path means
+  C, anything else means assembly. Each match produces
+  `#define _USED_<name>_FUNCTION 1` in `out/defs.h` only for C functions and
+  `.define _USED_<name>_FUNCTION /1/` in `out/defs.asm` only for assembly
+  functions.
 
 ### Commands
 
@@ -161,8 +176,18 @@ compilations use `-m<name>` (for example, `sdcc::target z80` produces `-mz80`).
   `sdcc -m<target>` with the source's `filename`, producing
   `out/<basename>.rel` and updating `out/defs.h` and `out/defs.asm` from the
   `.lst`.
-* `sdcc::clean`, `sdcc::link`, `sdcc::ihx2rom`, `sdcc::openmsx`, and
-  `sdcc::optional` are placeholders that print a recognition message.
+* `sdcc::link <source-id-or-.rel>` invokes `sdcc -m<target>` with the source's
+  `out/<basename>.rel` (or the given `.rel` path) and the inputs from every
+  `append-to` path declared by `sdcc::function` nodes. `.c` files are compiled
+  separately to `out/<basename>_c.rel`; `.asm` files are assembled first to
+  `out/<basename>.rel` with the matching SDCC assembler (`sdasz80` for Z80
+  targets). Only `.rel` files reach the linker, avoiding SDCC overwriting the
+  main object. It writes `out/<basename>.ihx`; source include directories are
+  passed with `-I`.
+* Compilation, assembly, and linking commands are echoed to stderr before they
+  run.
+* `sdcc::clean`, `sdcc::ihx2rom`, `sdcc::openmsx`, and `sdcc::optional` are
+  placeholders that print a recognition message.
 
 ## Tree-sitter
 

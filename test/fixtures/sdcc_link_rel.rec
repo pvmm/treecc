@@ -1,0 +1,44 @@
+project "Link test"
+
+ruleset {
+  "sdcc-bundle-4.2.0": sdcc
+}
+
+sdcc::target z80
+sdcc::link_opt [ --no-std-crt0 -DTEST=1 ]
+
+sdcc::function from_asm {
+  append-to "stdio.asm"
+  delimiters [ "---" ]
+  contents:
+---
+nop
+---
+}
+
+sdcc::function from_c {
+  append-to "stdio.c"
+  delimiters [ "---" ]
+  contents:
+---
+void from_c(void) {
+}
+---
+}
+
+sdcc::source main {
+  filename "main.c"
+  delimiters [ "{{" "}}" ]
+  contents {{
+int main(void) {
+	return 0;
+}
+  }}
+}
+
+actions {
+  default {
+    sdcc::compile main
+    sdcc::link main.rel
+  }
+}

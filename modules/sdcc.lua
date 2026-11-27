@@ -38,6 +38,10 @@ local function shell_quote(value)
   return "'" .. value:gsub("'", "'\"'\"'") .. "'"
 end
 
+local function print_command(command)
+  io.stderr:write(command .. "\n")
+end
+
 local function is_working_sdcc(path)
   local command = io.popen(shell_quote(path .. "/sdcc") .. " --version >/dev/null 2>&1", "r")
   if not command then
@@ -49,6 +53,8 @@ end
 
 local sdcc_executable
 local sdcc_target
+
+local fallback_sdcc_directory = "/usr/libexec/sdcc"
 
 local function bootstrap()
   local configured_path = configured_sdcc_path()
@@ -64,22 +70,33 @@ local function bootstrap()
 
   local executable = command:read("*l")
   local succeeded = command:close()
-  if not executable or executable == "" or not succeeded then
-    if configured_path then
-      error("SDCC configured at '" .. configured_path ..
-        "' is not a working compiler, and 'sdcc' was not found in PATH")
-    end
-    error("SDCC compiler 'sdcc' was not found in PATH")
+  if executable and executable ~= "" and succeeded then
+    sdcc_executable = executable
+    return
   end
-  sdcc_executable = executable
+
+  if is_working_sdcc(fallback_sdcc_directory) then
+    sdcc_executable = fallback_sdcc_directory .. "/sdcc"
+    return
+  end
+
+  if configured_path then
+    error("SDCC configured at '" .. configured_path ..
+      "' is not a working compiler, 'sdcc' was not found in PATH, and " ..
+      fallback_sdcc_directory .. "/sdcc is unavailable")
+  end
+  error("SDCC compiler 'sdcc' was not found in PATH and " ..
+    fallback_sdcc_directory .. "/sdcc is unavailable")
 end
 
 bootstrap()
 
 local functions = {}
 local sources = {}
+local link_options = {}
 local variables = {}
 local used_symbols = {}
+local used_symbol_languages = {}
 local translations = {}
 local translations_asm = {}
 local has_optional_function = false
@@ -228,11 +245,21 @@ local function extract_contents(blob_text, delimiters)
   return value
 end
 
+local function is_c_function(function_object)
+  for _, path in ipairs(function_object.append_to) do
+    if path:lower():match("%.c$") then
+      return true
+    end
+  end
+  return false
+end
+
 local function append_asm_source(function_object, path)
   if not path then
     error("sdcc::append-to requires a path")
   end
   table.insert(function_object.append_to, path)
+  function_object.language = is_c_function(function_object) and "c" or "asm"
   print("sdcc::append-to: received " .. path)
 end
 
@@ -334,15 +361,6 @@ local function finalize_contents(owner)
   end
 end
 
-local function is_c_function(function_object)
-  for _, path in ipairs(function_object.append_to) do
-    if path:lower():match("%.c$") then
-      return true
-    end
-  end
-  return false
-end
-
 local function collect_contents(node, function_object)
   if node.type == "blob_property" then
     local blob
@@ -367,22 +385,27 @@ local function collect_contents(node, function_object)
           contents = contents .. "\n"
         end
         local open_guard, close_guard
-        if is_c_function(function_object) then
+        if function_object.language == "c" then
           open_guard = "#ifdef _USED_" .. function_object.name .. "_FUNCTION\n"
           close_guard = "#endif\n"
         else
           open_guard = ".ifdef _USED_" .. function_object.name .. "_FUNCTION\n"
           close_guard = ".endif\n"
+          contents = ".globl " .. function_object.name .. "\n" .. contents
         end
         function_object.contents = open_guard .. contents .. close_guard
         break
       end
     end
-    local include_lines = is_c_function(function_object)
+    if not is_optional and function_object.language ~= "c" then
+      function_object.contents =
+        ".globl " .. function_object.name .. "\n" .. function_object.contents
+    end
+    local include_lines = function_object.language == "c"
       and "#include \"out/defs.h\"\n"
       or ".include \"out/defs.asm\"\n"
     if is_optional then
-      include_lines = include_lines .. (is_c_function(function_object)
+      include_lines = include_lines .. (function_object.language == "c"
         and "#include \"out/translations.h\"\n"
         or ".include \"out/translations.asm\"\n")
     end
@@ -491,8 +514,10 @@ local function write_translations_header()
   if not output then
     error("could not open `" .. path .. "` for writing: " .. open_error)
   end
-  local content = #translations > 0
-      and table.concat(translations, "\n") .. "\n" or ""
+  local content = "#pragma once\n"
+  if #translations > 0 then
+    content = content .. table.concat(translations, "\n") .. "\n"
+  end
   local written, write_error = output:write(content)
   if not written then
     output:close()
@@ -517,8 +542,12 @@ local function write_translations_assembly()
   if not output then
     error("could not open `" .. path .. "` for writing: " .. open_error)
   end
-  local content = #translations_asm > 0
-      and table.concat(translations_asm, "\n") .. "\n" or ""
+  local content = ".ifndef _TRANSLATIONS_ASM_INCLUDED\n" ..
+    ".define _TRANSLATIONS_ASM_INCLUDED /1/\n"
+  if #translations_asm > 0 then
+    content = content .. table.concat(translations_asm, "\n") .. "\n"
+  end
+  content = content .. ".endif\n"
   local written, write_error = output:write(content)
   if not written then
     output:close()
@@ -597,6 +626,7 @@ local function compile_source(source_object)
   command = command .. " -o " .. shell_quote(rel_path) ..
     " " .. shell_quote(source_object.filename)
 
+  print_command(command)
   local handle = io.popen(command .. " 2>&1", "r")
   if not handle then
     error("could not execute SDCC compiler")
@@ -626,11 +656,18 @@ local function write_used_defs(lst_path)
     local macro = "_USED_" .. function_object.name .. "_FUNCTION"
     if not used_symbols[macro] and content:find(symbol, 1, true) then
       used_symbols[macro] = true
+      used_symbol_languages[macro] = function_object.language
       table.insert(used_symbols, macro)
     end
   end
 
-  local function write_defs_file(path, format_line)
+  local function write_defs_file(path, language, header, footer, format_line)
+    local symbols = {}
+    for _, symbol in ipairs(used_symbols) do
+      if used_symbol_languages[symbol] == language then
+        table.insert(symbols, symbol)
+      end
+    end
     local directories_created, directory_error =
       treecc.create_parent_directories(path)
     if not directories_created then
@@ -641,8 +678,22 @@ local function write_used_defs(lst_path)
     if not output then
       error("could not open `" .. path .. "` for writing: " .. open_error)
     end
-    for _, symbol in ipairs(used_symbols) do
+    if header ~= "" then
+      local written, write_error = output:write(header)
+      if not written then
+        output:close()
+        error("could not write to `" .. path .. "`: " .. write_error)
+      end
+    end
+    for _, symbol in ipairs(symbols) do
       local written, write_error = output:write(format_line(symbol) .. "\n")
+      if not written then
+        output:close()
+        error("could not write to `" .. path .. "`: " .. write_error)
+      end
+    end
+    if footer ~= "" then
+      local written, write_error = output:write(footer)
       if not written then
         output:close()
         error("could not write to `" .. path .. "`: " .. write_error)
@@ -652,15 +703,153 @@ local function write_used_defs(lst_path)
     if not closed then
       error("could not finish writing `" .. path .. "`: " .. close_error)
     end
-    print("sdcc::defs: " .. path .. " [" .. table.concat(used_symbols, ", ") .. "]")
+    print("sdcc::defs: " .. path .. " [" .. table.concat(symbols, ", ") .. "]")
   end
 
-  write_defs_file("out/defs.h", function(symbol)
+  write_defs_file("out/defs.h", "c", "#pragma once\n", "", function(symbol)
     return "#define " .. symbol .. " 1"
   end)
-  write_defs_file("out/defs.asm", function(symbol)
-    return ".define " .. symbol .. " /1/"
-  end)
+  write_defs_file("out/defs.asm", "asm",
+    ".ifndef _DEFS_ASM_INCLUDED\n.define _DEFS_ASM_INCLUDED /1/\n",
+    ".endif\n",
+    function(symbol)
+      return ".define " .. symbol .. " /1/"
+    end)
+end
+
+local function assembler_executable()
+  local prefix = sdcc_executable:match("^(.*[/\\])") or ""
+  local name = "sdasz80"
+  if sdcc_target then
+    local target = sdcc_target:lower()
+    if target:match("^z80") or target:match("^z180") or
+       target:match("^ez80") or target:match("^gb") then
+      name = "sdasz80"
+    else
+      name = "sdas" .. target
+    end
+  end
+  return prefix .. name
+end
+
+local function run_external(command, description)
+  print_command(command)
+  local handle = io.popen(command .. " 2>&1", "r")
+  if not handle then
+    error("could not execute " .. description)
+  end
+  local output = handle:read("*a") or ""
+  local ok, reason, status = handle:close()
+  if ok ~= true then
+    local exit_code = status or reason or "unknown"
+    error(description .. " failed (exit " .. tostring(exit_code) .. "): " ..
+      output)
+  end
+end
+
+local function link_source(parameter)
+  if not parameter or parameter == "" then
+    error("sdcc::link requires a source id or .rel file")
+  end
+
+  local rel_path
+  local base
+  if parameter:lower():match("%.rel$") then
+    rel_path = parameter:match("[/\\]") and parameter or ("out/" .. parameter)
+    base = source_basename(parameter)
+  else
+    local source_object
+    for _, registered in ipairs(sources) do
+      if registered.id == parameter then
+        source_object = registered
+        break
+      end
+    end
+    if not source_object then
+      error("sdcc::link: unknown sdcc::source `" .. parameter .. "`")
+    end
+    base = source_basename(source_object.filename)
+    rel_path = "out/" .. base .. ".rel"
+  end
+
+  local ihx_path = "out/" .. base .. ".ihx"
+  local directories_created, directory_error =
+    treecc.create_parent_directories(ihx_path)
+  if not directories_created then
+    error("could not create parent directories for `" .. ihx_path .. "`: " ..
+      directory_error)
+  end
+
+  local include_dirs = {}
+  local seen = {}
+  for _, source_object in ipairs(sources) do
+    for _, include_dir in ipairs(source_object.include_dirs) do
+      if not seen[include_dir] then
+        seen[include_dir] = true
+        table.insert(include_dirs, include_dir)
+      end
+    end
+  end
+
+  local command = shell_quote(sdcc_executable)
+  if sdcc_target then
+    command = command .. " -m" .. sdcc_target
+  end
+  for _, option in ipairs(link_options) do
+    command = command .. " " .. shell_quote(option)
+  end
+  for _, include_dir in ipairs(include_dirs) do
+    command = command .. " -I" .. shell_quote(include_dir)
+  end
+  command = command .. " -o " .. shell_quote(ihx_path)
+
+  local inputs = { rel_path }
+  for _, function_object in ipairs(functions) do
+    for _, path in ipairs(function_object.append_to) do
+      if path:lower():match("%.c$") then
+        local function_base = source_basename(path)
+        local function_rel = "out/" .. function_base .. "_c.rel"
+        local created, create_error =
+          treecc.create_parent_directories(function_rel)
+        if not created then
+          error("could not create parent directories for `" .. function_rel ..
+            "`: " .. create_error)
+        end
+        local compile_command = shell_quote(sdcc_executable) .. " -c"
+        if sdcc_target then
+          compile_command = compile_command .. " -m" .. sdcc_target
+        end
+        for _, include_dir in ipairs(include_dirs) do
+          compile_command = compile_command .. " -I" .. shell_quote(include_dir)
+        end
+        compile_command = compile_command .. " -o " ..
+          shell_quote(function_rel) .. " " .. shell_quote(path)
+        run_external(compile_command,
+          "SDCC compilation of `" .. path .. "`")
+        table.insert(inputs, function_rel)
+      elseif path:lower():match("%.asm$") then
+        local function_base = source_basename(path)
+        local function_rel = "out/" .. function_base .. ".rel"
+        local created, create_error = treecc.create_parent_directories(function_rel)
+        if not created then
+          error("could not create parent directories for `" .. function_rel ..
+            "`: " .. create_error)
+        end
+        run_external(shell_quote(assembler_executable()) .. " -o " ..
+          shell_quote(function_rel) .. " " .. shell_quote(path),
+          "SDCC assembly of `" .. path .. "`")
+        table.insert(inputs, function_rel)
+      else
+        table.insert(inputs, path)
+      end
+    end
+  end
+  for _, input in ipairs(inputs) do
+    command = command .. " " .. shell_quote(input)
+  end
+
+  run_external(command, "SDCC linking of `" .. rel_path .. "`")
+  print("sdcc::linked: " .. ihx_path)
 end
 
 local function write_asm_source(function_object, path)
@@ -735,6 +924,7 @@ return {
     end
     local function_object = {
       name = name,
+      language = "asm",
       append_to = {},
       current_attributes = {},
       delimiters = {},
@@ -773,7 +963,7 @@ return {
       if attribute == ".OPTIONAL" then
         has_optional_function = true
         table.insert(translations_asm,
-          ".define " .. name .. " /_USED_" .. name .. "/")
+          ".define " .. name .. " /__USED_" .. name .. "/")
         break
       end
     end
@@ -839,8 +1029,28 @@ return {
     print("sdcc::ihx2rom: recognized")
   end,
 
-  ["sdcc::link"] = function()
-    print("sdcc::link: recognized")
+  ["sdcc::link_opt"] = function(command)
+    local list = command.args[1]
+    if not list or list.type ~= "list" then
+      error("sdcc::link_opt requires a list")
+    end
+    local values = {}
+    for _, argument in ipairs(list.children) do
+      local value = argument.children[1]
+      if not value or not value.value then
+        error("sdcc::link_opt entries must be values")
+      end
+      table.insert(values, value.value)
+    end
+    for _, value in ipairs(values) do
+      table.insert(link_options, value)
+    end
+    print("sdcc::link_opt: [" .. table.concat(values, ", ") .. "]")
+  end,
+
+  ["sdcc::link"] = function(command)
+    local parameter = command.args[1] and command.args[1].value
+    link_source(parameter)
   end,
 
   ["sdcc::openmsx"] = function()

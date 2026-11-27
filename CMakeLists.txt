@@ -196,6 +196,26 @@ if(BUILD_TESTING)
     ENVIRONMENT
       "PATH=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/fake-bin;HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
   )
+  foreach(link_mode IN ITEMS id rel)
+    if(link_mode STREQUAL "rel")
+      set(link_recipe "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/sdcc_link_rel.rec")
+    else()
+      set(link_recipe "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/sdcc_link.rec")
+    endif()
+    add_test(
+      NAME "sdcc_link_${link_mode}"
+      COMMAND "${CMAKE_COMMAND}"
+        "-DTREECC_EXECUTABLE=$<TARGET_FILE:treecc>"
+        "-DRECIPE=${link_recipe}"
+        "-DDEFINITIONS=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
+        "-DWORKING_DIRECTORY=${CMAKE_CURRENT_BINARY_DIR}/sdcc-link-${link_mode}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/test/check_sdcc_link.cmake"
+    )
+    set_tests_properties("sdcc_link_${link_mode}" PROPERTIES
+      ENVIRONMENT
+        "PATH=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/fake-bin;HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
+    )
+  endforeach()
   add_test(
     NAME sdcc_delimiters
     COMMAND "$<TARGET_FILE:treecc>"
@@ -273,14 +293,14 @@ if(BUILD_TESTING)
     PASS_REGULAR_EXPRESSION "sdcc::source:"
   )
   add_test(
-    NAME sdcc_missing_from_path
+    NAME sdcc_fallback
     COMMAND "${CMAKE_COMMAND}" -E env "PATH="
       "$<TARGET_FILE:treecc>"
-      "${CMAKE_CURRENT_SOURCE_DIR}/sample.rec"
+      "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/sdcc_fallback.rec"
       "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
   )
-  set_tests_properties(sdcc_missing_from_path PROPERTIES
-    WILL_FAIL TRUE
+  set_tests_properties(sdcc_fallback PROPERTIES
+    PASS_REGULAR_EXPRESSION "sdcc::target: z80"
     ENVIRONMENT "HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
   )
   add_test(
@@ -301,6 +321,8 @@ if(BUILD_TESTING)
   set_tests_properties(actions_default PROPERTIES
     PASS_REGULAR_EXPRESSION "sdcc::compile: main"
     FAIL_REGULAR_EXPRESSION "sdcc::clean: recognized"
+    ENVIRONMENT
+      "PATH=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/fake-bin;HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
   )
   add_test(
     NAME actions_clean
@@ -322,6 +344,8 @@ if(BUILD_TESTING)
   )
   set_tests_properties(actions_run PROPERTIES
     PASS_REGULAR_EXPRESSION "sdcc::openmsx: recognized"
+    ENVIRONMENT
+      "PATH=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/fake-bin;HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
   )
   add_test(
     NAME actions_unknown_rule
@@ -354,7 +378,7 @@ if(BUILD_TESTING)
       sdcc_attributes
       sdcc_empty_attributes
       sdcc_config_path
-      sdcc_missing_from_path
+      sdcc_fallback
       actions_default
       actions_clean
       actions_run

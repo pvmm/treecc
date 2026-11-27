@@ -1,0 +1,25 @@
+#!/bin/sh
+if [ -n "$FAKE_SDCC_LOG" ]; then
+  printf '%s\n' "$*" >> "$FAKE_SDCC_LOG"
+fi
+
+output=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "-o" ]; then
+    output="$arg"
+    prev=""
+    continue
+  fi
+  if [ "$arg" = "-o" ]; then
+    prev="-o"
+  fi
+done
+
+if [ -z "$output" ]; then
+  exit 1
+fi
+dir=$(dirname "$output")
+mkdir -p "$dir"
+: > "$output"
+exit 0

@@ -15,6 +15,17 @@ nop
 	append-to "stdio.asm"
 }
 
+sdcc::function example_c {
+	attributes [ .OPTIONAL ]
+	delimiters [ "---" ]
+	contents:
+---
+void example_c(void) {
+}
+---
+	append-to "stdio.c"
+}
+
 sdcc::source main {
 	filename "main.c"
 	delimiters [ "{{" "}}" ]
