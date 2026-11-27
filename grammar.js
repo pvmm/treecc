@@ -10,7 +10,13 @@ module.exports = grammar({
   extras: ($) => [/[ \t\r]+/, $.comment],
 
   rules: {
-    source_file: ($) => seq(repeat($._newline), repeat(seq($._statement, repeat($._newline)))),
+    source_file: ($) =>
+      seq(
+        repeat($._newline),
+        repeat(seq(choice($._statement, $.include), repeat($._newline))),
+      ),
+
+    include: ($) => seq("include", field("path", $.string)),
 
     _statement: ($) =>
       choice(

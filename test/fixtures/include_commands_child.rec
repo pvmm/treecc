@@ -1,0 +1,2 @@
+sdcc::target z80
+sdcc::link_opt [ --no-std-crt0 ]

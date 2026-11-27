@@ -49,6 +49,14 @@ std::string node_text(TSNode node, const std::string &source) {
   return source.substr(start, end - start);
 }
 
+std::string string_node_value(TSNode node, const std::string &source) {
+  const std::string raw = node_text(node, source);
+  if (raw.size() < 2 || raw.front() != '"' || raw.back() != '"') {
+    return {};
+  }
+  return raw.substr(1, raw.size() - 2);
+}
+
 std::filesystem::path resolve_executable_path(const char *argv0) {
   std::error_code error;
 #if defined(__linux__)
@@ -99,16 +107,42 @@ void report_errors(TSNode node, const std::string &path, int &error_count) {
   }
 }
 
-struct ParsedFile {
+struct Document;
+
+struct DocumentItem {
+  TSNode node{};
+  std::unique_ptr<Document> included;
+};
+
+struct Document {
   std::string path;
   std::string source;
   Tree tree;
+  std::vector<DocumentItem> items;
 };
 
-std::unique_ptr<ParsedFile> parse_file(TSParser *parser,
-                                      const std::string &path) {
+struct IncludeGuard {
+  std::unordered_set<std::string> &active;
+  std::string key;
+
+  ~IncludeGuard() { active.erase(key); }
+};
+
+std::unique_ptr<Document> parse_document(
+    TSParser *parser, const std::string &path,
+    std::unordered_set<std::string> &active) {
+  std::error_code path_error;
+  const auto absolute = std::filesystem::absolute(path, path_error);
+  const std::string key =
+      path_error ? path : absolute.lexically_normal().string();
+  if (!active.insert(key).second) {
+    std::cerr << path << ": recursive include detected\n";
+    return nullptr;
+  }
+  IncludeGuard guard{active, key};
+
   try {
-    auto parsed = std::make_unique<ParsedFile>();
+    auto parsed = std::make_unique<Document>();
     parsed->path = path;
     parsed->source = read_file(path);
     Tree tree(ts_parser_parse_string(
@@ -134,6 +168,47 @@ std::unique_ptr<ParsedFile> parse_file(TSParser *parser,
 
     std::cout << path << ": syntax OK\n";
     parsed->tree = std::move(tree);
+
+    for (uint32_t i = 0; i < ts_node_named_child_count(root); ++i) {
+      const TSNode child = ts_node_named_child(root, i);
+      DocumentItem item;
+      if (std::string(ts_node_type(child)) == "include") {
+        const TSNode path_node = ts_node_child_by_field_name(child, "path", 4);
+        if (ts_node_is_null(path_node)) {
+          std::cerr << path << ':' << ts_node_start_point(child).row + 1
+                    << ": include requires a path\n";
+          return nullptr;
+        }
+        const std::string include_path =
+            string_node_value(path_node, parsed->source);
+        if (include_path.empty()) {
+          std::cerr << path << ':' << ts_node_start_point(child).row + 1
+                    << ": include requires a string path\n";
+          return nullptr;
+        }
+        const auto resolved =
+            std::filesystem::path(path).parent_path() / include_path;
+        std::error_code resolved_error;
+        const auto resolved_absolute =
+            std::filesystem::absolute(resolved, resolved_error);
+        const std::string resolved_key =
+            resolved_error ? resolved.string()
+                           : resolved_absolute.lexically_normal().string();
+        if (active.count(resolved_key) != 0) {
+          std::cerr << path << ':' << ts_node_start_point(child).row + 1
+                    << ": recursive include of `" << include_path << "`\n";
+          return nullptr;
+        }
+        item.included = parse_document(parser, resolved.string(), active);
+        if (!item.included) {
+          return nullptr;
+        }
+      } else {
+        item.node = child;
+      }
+      parsed->items.push_back(std::move(item));
+    }
+
     return parsed;
   } catch (const std::exception &error) {
     std::cerr << path << ": " << error.what() << '\n';
@@ -177,11 +252,13 @@ class ModuleManager {
     }
   }
 
-  bool load_from_ruleset(TSNode root, const std::string &source,
+  bool load_from_ruleset(const Document &recipe, const Document &definitions,
                          const std::filesystem::path &executable_path) {
     std::vector<std::string> modules;
     std::unordered_map<std::string, std::string> aliases;
-    collect_modules(root, source, modules, aliases);
+    std::unordered_set<std::string> seen_modules;
+    collect_modules(recipe, modules, aliases, seen_modules);
+    collect_modules(definitions, modules, aliases, seen_modules);
     builtin_lua_requested_ = false;
     sdcc_module_requested_ = false;
     sdcc_namespace_ = "sdcc";
@@ -331,10 +408,10 @@ class ModuleManager {
     }
   }
 
-  static void collect_modules(TSNode node, const std::string &source,
-                              std::vector<std::string> &modules,
-                              std::unordered_map<std::string, std::string> &aliases) {
-    std::unordered_set<std::string> seen;
+  static void collect_modules(
+      TSNode node, const std::string &source, std::vector<std::string> &modules,
+      std::unordered_map<std::string, std::string> &aliases,
+      std::unordered_set<std::string> &seen) {
     std::function<void(TSNode)> visit = [&](TSNode current) {
       if (std::string(ts_node_type(current)) == "function_call") {
         const TSNode function =
@@ -356,6 +433,19 @@ class ModuleManager {
       }
     };
     visit(node);
+  }
+
+  static void collect_modules(
+      const Document &document, std::vector<std::string> &modules,
+      std::unordered_map<std::string, std::string> &aliases,
+      std::unordered_set<std::string> &seen) {
+    for (const auto &item : document.items) {
+      if (item.included) {
+        collect_modules(*item.included, modules, aliases, seen);
+      } else {
+        collect_modules(item.node, document.source, modules, aliases, seen);
+      }
+    }
   }
 
   bool load_module(const std::string &name,
@@ -474,6 +564,21 @@ bool dispatch_commands(TSNode node, const std::string &source,
   return success;
 }
 
+bool dispatch_commands(const Document &document, const ModuleManager &modules) {
+  bool success = true;
+  for (const auto &item : document.items) {
+    if (item.included) {
+      success = dispatch_commands(*item.included, modules) && success;
+    } else {
+      success =
+          dispatch_commands(item.node, document.source, modules,
+                            document.path) &&
+          success;
+    }
+  }
+  return success;
+}
+
 bool contains_command_prefix(TSNode node, const std::string &source,
                              const std::string &prefix) {
   if (std::string(ts_node_type(node)) == "function_call") {
@@ -488,6 +593,20 @@ bool contains_command_prefix(TSNode node, const std::string &source,
 
   for (uint32_t i = 0; i < ts_node_child_count(node); ++i) {
     if (contains_command_prefix(ts_node_child(node, i), source, prefix)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool contains_command_prefix(const Document &document,
+                             const std::string &prefix) {
+  for (const auto &item : document.items) {
+    if (item.included) {
+      if (contains_command_prefix(*item.included, prefix)) {
+        return true;
+      }
+    } else if (contains_command_prefix(item.node, document.source, prefix)) {
       return true;
     }
   }
@@ -526,8 +645,10 @@ int main(int argc, char **argv) {
     return 2;
   }
 
-  auto recipe = parse_file(parser.get(), recipe_path);
-  auto definitions = parse_file(parser.get(), definitions_path);
+  std::unordered_set<std::string> active_includes;
+  auto recipe = parse_document(parser.get(), recipe_path, active_includes);
+  auto definitions =
+      parse_document(parser.get(), definitions_path, active_includes);
   if (!recipe || !definitions) {
     return 1;
   }
@@ -535,17 +656,14 @@ int main(int argc, char **argv) {
   const auto executable_path = resolve_executable_path(argv[0]);
 
   ModuleManager modules;
-  const TSNode recipe_root = ts_tree_root_node(recipe->tree.get());
-  if (!modules.load_from_ruleset(recipe_root, recipe->source, executable_path)) {
+  if (!modules.load_from_ruleset(*recipe, *definitions, executable_path)) {
     return 1;
   }
 
-  const TSNode definitions_root =
-      ts_tree_root_node(definitions->tree.get());
   const bool lua_handlers_requested =
       modules.builtin_lua_requested() ||
-      contains_command_prefix(recipe_root, recipe->source, "lua::") ||
-      contains_command_prefix(definitions_root, definitions->source, "lua::");
+      contains_command_prefix(*recipe, "lua::") ||
+      contains_command_prefix(*definitions, "lua::");
   if (!modules.initialize_builtin_lua()) {
     return 1;
   }
@@ -568,10 +686,7 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  const bool recipe_commands = dispatch_commands(
-      recipe_root, recipe->source, modules, recipe->path);
-  const bool definition_commands =
-      dispatch_commands(definitions_root, definitions->source, modules,
-                        definitions->path);
+  const bool recipe_commands = dispatch_commands(*recipe, modules);
+  const bool definition_commands = dispatch_commands(*definitions, modules);
   return recipe_commands && definition_commands ? 0 : 1;
 }

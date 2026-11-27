@@ -9,6 +9,15 @@ before changing the parser, SDCC handlers, or the actions module.
 * The optional third argument selects an action rule and defaults to `default`.
 * The recipe and definitions files must have `.rec` and `.def` extensions.
 
+## Global includes
+
+* A global `include "<path>"` statement processes another recipe file at that
+  point, like a C `#include`.
+* Include paths are resolved relative to the file containing the `include`.
+* Included files are parsed and dispatched separately, so syntax and command
+  errors are reported with the included file's path and line.
+* Recursive include cycles fail.
+
 ## Ruleset and module loading
 
 * `ruleset` lists modules. A plain string loads a dynamic module named

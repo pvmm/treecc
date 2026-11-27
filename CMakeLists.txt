@@ -116,6 +116,35 @@ if(BUILD_TESTING)
     )
   endif()
   add_test(
+    NAME include_commands
+    COMMAND "$<TARGET_FILE:treecc>"
+      "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/include_commands.rec"
+      "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
+  )
+  set_tests_properties(include_commands PROPERTIES
+    PASS_REGULAR_EXPRESSION "sdcc::target: z80"
+    ENVIRONMENT
+      "PATH=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/fake-bin;HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
+  )
+  add_test(
+    NAME include_error
+    COMMAND "${CMAKE_COMMAND}"
+      "-DTREECC=$<TARGET_FILE:treecc>"
+      "-DRECIPE=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/include_error.rec"
+      "-DDEFINITIONS=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
+      -DMODE=error
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/test/check_include.cmake"
+  )
+  add_test(
+    NAME include_cycle
+    COMMAND "${CMAKE_COMMAND}"
+      "-DTREECC=$<TARGET_FILE:treecc>"
+      "-DRECIPE=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/include_cycle_a.rec"
+      "-DDEFINITIONS=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
+      -DMODE=cycle
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/test/check_include.cmake"
+  )
+  add_test(
     NAME sdcc_source_context
     COMMAND "$<TARGET_FILE:treecc>"
       "${CMAKE_CURRENT_SOURCE_DIR}/sample.rec"
@@ -405,6 +434,9 @@ if(BUILD_TESTING)
   )
   foreach(test_name IN ITEMS
       parse_examples
+      include_commands
+      include_error
+      include_cycle
       sdcc_source_context
       sdcc_source_filename
       sdcc_append_to

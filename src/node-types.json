@@ -211,6 +211,22 @@
     }
   },
   {
+    "type": "include",
+    "named": true,
+    "fields": {
+      "path": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "string",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "list",
     "named": true,
     "fields": {},
@@ -293,6 +309,10 @@
         },
         {
           "type": "function_definition",
+          "named": true
+        },
+        {
+          "type": "include",
           "named": true
         },
         {
@@ -388,6 +408,10 @@
   {
     "type": "identifier",
     "named": true
+  },
+  {
+    "type": "include",
+    "named": false
   },
   {
     "type": "infix",

@@ -1,4 +1,13 @@
 ==================
+Global include
+==================
+include "other.rec"
+---
+(source_file
+  (include
+    path: (string)))
+
+==================
 Prefix call
 ==================
 project SampleProgram

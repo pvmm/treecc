@@ -62,6 +62,11 @@ it defaults to `default`. Rules are executed after the recipe is parsed.
 continuing. Commands such as `sdcc::compile` must belong to a loaded ruleset
 (for example, `sdcc-4.2.0`); otherwise running the rule fails.
 
+Recipe and definitions files may use a global `include "<path>"` statement to
+process another file at that point, like a C `#include`. Paths are resolved
+relative to the file containing the `include`, and syntax or command errors are
+reported with the included file's path and line. Recursive include cycles fail.
+
 ### Installing a relocatable bundle
 
 ```sh
