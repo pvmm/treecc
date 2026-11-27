@@ -71,6 +71,16 @@ containing it configured in `~/.config/treecc`, or the system installation at
 path = /path/to/sdcc/bin
 ```
 
+### Generating MSXGL function files
+
+`./generate-functions.py [--src DIR] [--out DIR]` rebuilds the `functions/`
+directory. It scans the headers included by `msxgl.h`, plus `msx-music.h`, and
+pairs each header with the same-named `.c` file when one exists. One file per
+function is written to `functions/<header-stem>/<function-name>.c`, containing
+the header declaration and documentation followed by the implementation.
+Headers without a matching source (`core.h`, `system_port.h`, `color.h`) still
+produce files for any inline functions they declare.
+
 ## Extensions
 
 Modules listed in a recipe's `ruleset` provide handlers for namespaced
