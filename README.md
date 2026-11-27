@@ -62,6 +62,17 @@ it defaults to `default`. Rules are executed after the recipe is parsed.
 continuing. Commands such as `sdcc::compile` must belong to a loaded ruleset
 (for example, `sdcc-4.2.0`); otherwise running the rule fails.
 
+### Installing a relocatable bundle
+
+```sh
+cmake --install build --prefix /path/to/treecc
+```
+
+This installs the executable, Lua scripts, dynamic modules and Tree-sitter
+runtime into `<prefix>/bin`. The installed `RUNPATH` is `$ORIGIN`, so the whole
+`bin` directory can be moved or symlinked elsewhere. SDCC itself remains an
+external tool.
+
 The SDCC module requires a working `sdcc` executable on `PATH`, a directory
 containing it configured in `~/.config/treecc`, or the system installation at
 `/usr/libexec/sdcc/sdcc`:

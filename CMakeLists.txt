@@ -35,6 +35,11 @@ if(UNIX AND NOT APPLE)
   target_link_libraries(treecc PRIVATE ${CMAKE_DL_LIBS})
 endif()
 
+# The installed bundle keeps the Lua scripts, modules and Tree-sitter runtime
+# beside the executable. Relative RUNPATHs let the whole directory be moved.
+set(TREECC_INSTALL_RPATH "$ORIGIN")
+set_target_properties(treecc PROPERTIES INSTALL_RPATH "${TREECC_INSTALL_RPATH}")
+
 function(add_treecc_module target source output_name)
   add_library(${target} MODULE ${source})
   target_compile_features(${target} PRIVATE cxx_std_17)
@@ -50,13 +55,24 @@ function(add_treecc_module target source output_name)
     PROPERTIES
       OUTPUT_NAME "${output_name}"
       LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+      INSTALL_RPATH "${TREECC_INSTALL_RPATH}"
   )
+  install(TARGETS ${target} LIBRARY DESTINATION bin)
 endfunction()
 
 add_treecc_module(treecc_module_shell modules/shell.cpp "treecc-module-shell")
 configure_file(modules/lua.lua "${CMAKE_CURRENT_BINARY_DIR}/lua.lua" COPYONLY)
 configure_file(modules/actions.lua "${CMAKE_CURRENT_BINARY_DIR}/actions.lua" COPYONLY)
 configure_file(modules/sdcc.lua "${CMAKE_CURRENT_BINARY_DIR}/sdcc.lua" COPYONLY)
+
+install(TARGETS treecc RUNTIME DESTINATION bin)
+install(FILES
+  modules/actions.lua
+  modules/lua.lua
+  modules/sdcc.lua
+  "$<TARGET_FILE:tree-sitter>"
+  DESTINATION bin
+)
 
 include(CTest)
 if(BUILD_TESTING)
@@ -78,6 +94,27 @@ if(BUILD_TESTING)
     ENVIRONMENT
       "PATH=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/fake-bin;HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
   )
+  if(UNIX)
+    set(TREECC_SYMLINK_DIR "${CMAKE_CURRENT_BINARY_DIR}/symlink-bin")
+    file(MAKE_DIRECTORY "${TREECC_SYMLINK_DIR}")
+    file(REMOVE "${TREECC_SYMLINK_DIR}/treecc")
+    file(CREATE_LINK
+      "${CMAKE_CURRENT_BINARY_DIR}/treecc"
+      "${TREECC_SYMLINK_DIR}/treecc"
+      SYMBOLIC
+    )
+    add_test(
+      NAME treecc_symlinked_executable
+      COMMAND "${TREECC_SYMLINK_DIR}/treecc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/sample.rec"
+        "${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/functions.def"
+    )
+    set_tests_properties(treecc_symlinked_executable PROPERTIES
+      PASS_REGULAR_EXPRESSION "Loaded Lua handlers: actions.lua"
+      ENVIRONMENT
+        "PATH=${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/fake-bin;HOME=${CMAKE_CURRENT_BINARY_DIR}/no-config-home"
+    )
+  endif()
   add_test(
     NAME sdcc_source_context
     COMMAND "$<TARGET_FILE:treecc>"

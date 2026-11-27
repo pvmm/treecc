@@ -49,6 +49,24 @@ std::string node_text(TSNode node, const std::string &source) {
   return source.substr(start, end - start);
 }
 
+std::filesystem::path resolve_executable_path(const char *argv0) {
+  std::error_code error;
+#if defined(__linux__)
+  const auto proc_path = std::filesystem::read_symlink("/proc/self/exe", error);
+  if (!error) {
+    return proc_path;
+  }
+#endif
+  const auto absolute_path = std::filesystem::absolute(argv0, error);
+  if (error) {
+    return argv0;
+  }
+  std::error_code canonical_error;
+  const auto canonical_path =
+      std::filesystem::canonical(absolute_path, canonical_error);
+  return canonical_error ? absolute_path : canonical_path;
+}
+
 std::string read_file(const std::string &path) {
   std::ifstream input(path, std::ios::binary);
   if (!input) {
@@ -514,14 +532,7 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  std::error_code path_error;
-  const auto executable_path =
-      std::filesystem::absolute(argv[0], path_error);
-  if (path_error) {
-    std::cerr << "could not resolve executable path: " << path_error.message()
-              << '\n';
-    return 2;
-  }
+  const auto executable_path = resolve_executable_path(argv[0]);
 
   ModuleManager modules;
   const TSNode recipe_root = ts_tree_root_node(recipe->tree.get());
