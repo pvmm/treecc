@@ -1,0 +1,11 @@
+project "Contents include test"
+
+ruleset {
+  "sdcc-4.2.0": sdcc
+}
+
+sdcc::function from_file {
+  variable $suffix "from file"
+  append-to "out/from_file.c"
+  contents: .INCLUDE("sdcc_contents_include_text.c")
+}

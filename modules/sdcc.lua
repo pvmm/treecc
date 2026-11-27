@@ -159,6 +159,13 @@ local function process_context(node, scope_id)
     node.value = interpolate(node.value, true)
   end
 
+  if node.type == "contents_include" then
+    for _, child in ipairs(node.children) do
+      process_context(child, scope_id)
+    end
+    return
+  end
+
   if node.type == "function_call" then
     for _, argument in ipairs(node.args) do
       process_context(argument, scope_id)
@@ -243,6 +250,51 @@ local function extract_contents(blob_text, delimiters)
   local value = blob_text:sub(opening_end + 1, closing_start - 1)
   value = value:gsub("^\r?\n", "", 1)
   return value
+end
+
+local function read_contents_file(path)
+  if not path or path == "" then
+    error("contents .INCLUDE requires a file name")
+  end
+
+  local resolved = path
+  local recipe_path = treecc.path and treecc.path() or ""
+  if recipe_path ~= "" then
+    local directory = recipe_path:match("^(.*[/\\])")
+    if directory then
+      resolved = directory .. path
+    end
+  end
+
+  local file, open_error = io.open(resolved, "r")
+  if not file then
+    error("could not open contents include `" .. path .. "`: " ..
+      tostring(open_error))
+  end
+  local contents = file:read("*a")
+  local closed, close_error = file:close()
+  if not contents then
+    error("could not read contents include `" .. path .. "`")
+  end
+  if not closed then
+    error("could not close contents include `" .. path .. "`: " ..
+      tostring(close_error))
+  end
+  return contents
+end
+
+local function read_contents_value(node, owner)
+  if node.type == "blob" then
+    return extract_contents(node.text, owner.delimiters)
+  end
+  if node.type == "contents_include" then
+    local path = node.children[1]
+    if not path or path.type ~= "string" or not path.value then
+      error("contents .INCLUDE requires a string file name")
+    end
+    return read_contents_file(path.value)
+  end
+  return nil
 end
 
 local function is_c_function(function_object)
@@ -363,18 +415,18 @@ end
 
 local function collect_contents(node, function_object)
   if node.type == "blob_property" then
-    local blob
+    local contents
     for _, child in ipairs(node.children) do
-      if child.type == "blob" then
-        blob = child
+      contents = read_contents_value(child, function_object)
+      if contents ~= nil then
         break
       end
     end
-    if not blob then
-      error("contents property is missing its blob")
+    if contents == nil then
+      error("contents property is missing its blob or .INCLUDE")
     end
-    function_object.contents =
-      extract_contents(blob.text, function_object.delimiters)
+    function_object.contents = contents
+    function_object.has_contents = true
     finalize_contents(function_object)
     local is_optional = false
     for _, attribute in ipairs(function_object.current_attributes) do
@@ -464,18 +516,18 @@ local function collect_source_metadata(node, source_object)
         table.concat(source_object.delimiters, ", ") .. "]")
     end
   elseif node.type == "blob_property" then
-    local blob
+    local contents
     for _, child in ipairs(node.children) do
-      if child.type == "blob" then
-        blob = child
+      contents = read_contents_value(child, source_object)
+      if contents ~= nil then
         break
       end
     end
-    if not blob then
-      error("contents property is missing its blob")
+    if contents == nil then
+      error("contents property is missing its blob or .INCLUDE")
     end
-    source_object.contents =
-      extract_contents(blob.text, source_object.delimiters)
+    source_object.contents = contents
+    source_object.has_contents = true
     finalize_contents(source_object)
     print("sdcc::source contents: received " .. source_object.contents)
   end
@@ -891,6 +943,7 @@ return {
       trim_contents = nil,
       contents_interpolation = true,
       contents = "",
+      has_contents = false,
     }
     local saved_variables = copy_variables()
     local succeeded, failure = pcall(function()
@@ -931,30 +984,35 @@ return {
       trim_contents = nil,
       contents_interpolation = true,
       contents = "",
+      has_contents = false,
       signature = nil,
     }
     local context = command.args[2]
-    if context then
-      local variable_name = "$sdcc::function"
-      local previous_value = variables[variable_name]
-      variables[variable_name] = name
-      local succeeded, failure = pcall(function()
-        process_context(context)
-        collect_signature(context, function_object)
-        collect_asm_sources(context, function_object)
-        collect_attributes(context, function_object)
-        collect_delimiters(context, function_object)
-        collect_trim_contents(context, function_object)
-        collect_contents_interpolation(context, function_object)
-        collect_contents(context, function_object)
-        for _, path in ipairs(function_object.append_to) do
-          write_asm_source(function_object, path)
-        end
-      end)
-      variables[variable_name] = previous_value
-      if not succeeded then
-        error(failure, 0)
+    if not context or context.type ~= "context" then
+      error("sdcc::function requires a context with contents")
+    end
+    local variable_name = "$sdcc::function"
+    local previous_value = variables[variable_name]
+    variables[variable_name] = name
+    local succeeded, failure = pcall(function()
+      process_context(context)
+      collect_signature(context, function_object)
+      collect_asm_sources(context, function_object)
+      collect_attributes(context, function_object)
+      collect_delimiters(context, function_object)
+      collect_trim_contents(context, function_object)
+      collect_contents_interpolation(context, function_object)
+      collect_contents(context, function_object)
+      if not function_object.has_contents then
+        error("sdcc::function requires contents")
       end
+      for _, path in ipairs(function_object.append_to) do
+        write_asm_source(function_object, path)
+      end
+    end)
+    variables[variable_name] = previous_value
+    if not succeeded then
+      error(failure, 0)
     end
     table.insert(functions, function_object)
     table.insert(translations,

@@ -143,7 +143,11 @@ pass `--no-std-crt0` to SDCC.
 ### Function scope (`sdcc::function`)
 
 * A function has an ID, optional `attributes`, optional `signature`,
-  `delimiters`, `contents`, and one or more `append-to` paths.
+  `delimiters`, required `contents`, and one or more `append-to` paths.
+  A missing `contents` node fails the run.
+* `contents` can be an inline delimited blob or `.INCLUDE("<file name>")`, for
+  example `contents: .INCLUDE("print_from_c.c")`. The file is read relative to
+  the recipe containing the command and is interpolated like inline contents.
 * `attributes` accepts `.OPTIONAL` and `.SIZE`; both are stored in
   `current_attributes`. An empty list enables no flags.
 * Within function contents, `$sdcc::function` and `${sdcc::function}` both

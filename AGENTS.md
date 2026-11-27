@@ -71,7 +71,11 @@ For example, `sdcc::link_opt [ --no-std-crt0 ]` makes every later
 ### Function scope (`sdcc::function`)
 
 * A function has an ID, optional `attributes`, optional `signature`,
-  `delimiters`, `contents`, and one or more `append-to` paths.
+  `delimiters`, required `contents`, and one or more `append-to` paths.
+  Missing `contents` fails the run.
+* `contents` may be an inline blob or `.INCLUDE("<file name>")`. The file is
+  read relative to the recipe that contains the command and is interpolated
+  with the same variables as inline contents.
 * `attributes` accepts `.OPTIONAL` and `.SIZE`.
 * `$sdcc::function` and `${sdcc::function}` interpolate to the function name.
 * `signature` text is prepended to every generated `sdcc::source` file.

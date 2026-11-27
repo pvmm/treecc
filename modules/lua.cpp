@@ -12,6 +12,7 @@ namespace {
 lua_State *lua = nullptr;
 int handlers_reference = LUA_NOREF;
 std::string rule_name;
+std::string source_path;
 
 int set_rule(lua_State *state) {
   rule_name = luaL_checkstring(state, 1);
@@ -20,6 +21,18 @@ int set_rule(lua_State *state) {
 
 int get_rule(lua_State *state) {
   lua_pushstring(state, rule_name.c_str());
+  return 1;
+}
+
+int set_source_path(lua_State *state) {
+  std::size_t path_length = 0;
+  const char *path = luaL_checklstring(state, 1, &path_length);
+  source_path.assign(path, path_length);
+  return 0;
+}
+
+int get_source_path(lua_State *state) {
+  lua_pushlstring(state, source_path.data(), source_path.size());
   return 1;
 }
 
@@ -260,6 +273,10 @@ extern "C" int treecc_initialize_lua_module_v1(void) {
   lua_setfield(lua, -2, "set_rule");
   lua_pushcfunction(lua, get_rule);
   lua_setfield(lua, -2, "rule");
+  lua_pushcfunction(lua, set_source_path);
+  lua_setfield(lua, -2, "set_source_path");
+  lua_pushcfunction(lua, get_source_path);
+  lua_setfield(lua, -2, "path");
   lua_pushcfunction(lua, call_handler);
   lua_setfield(lua, -2, "call_handler");
   lua_setglobal(lua, "treecc");
@@ -270,6 +287,10 @@ extern "C" int treecc_initialize_lua_module_v1(void) {
 
 extern "C" void treecc_set_rule_v1(const char *rule) {
   rule_name = rule == nullptr ? "" : rule;
+}
+
+extern "C" void treecc_set_source_path_v1(const char *path) {
+  source_path = path == nullptr ? "" : path;
 }
 
 extern "C" int treecc_load_lua_handlers_v1(
@@ -293,4 +314,5 @@ extern "C" void treecc_shutdown_lua_module(void) {
     lua_close(lua);
     lua = nullptr;
   }
+  source_path.clear();
 }

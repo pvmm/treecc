@@ -9,6 +9,7 @@ enum TokenType {
   BLOB_START,
   BLOB_TEXT,
   BLOB_END,
+  CONTENTS_INCLUDE,
 };
 
 enum { MAX_DELIMITER_LENGTH = 1022 };
@@ -54,13 +55,28 @@ void tree_sitter_treecc_external_scanner_deserialize(void *payload, const char *
   memcpy(scanner->delimiter, buffer + sizeof(delimiter_length), delimiter_length);
 }
 
-static bool scan_blob_start(Scanner *scanner, TSLexer *lexer) {
+static void skip_blob_prefix(TSLexer *lexer) {
   while (lexer->lookahead == ' ' || lexer->lookahead == '\t' ||
          lexer->lookahead == '\r' || lexer->lookahead == '\n' ||
          lexer->lookahead == ':') {
     lexer->advance(lexer, true);
   }
+}
 
+static bool scan_contents_include(TSLexer *lexer) {
+  static const char keyword[] = ".INCLUDE";
+  for (uint16_t i = 0; keyword[i] != '\0'; ++i) {
+    if (lexer->lookahead != (unsigned char)keyword[i]) {
+      return false;
+    }
+    lexer->advance(lexer, false);
+  }
+  lexer->mark_end(lexer);
+  lexer->result_symbol = CONTENTS_INCLUDE;
+  return true;
+}
+
+static bool scan_blob_start(Scanner *scanner, TSLexer *lexer) {
   if (lexer->lookahead == '{') {
     lexer->advance(lexer, false);
     if (lexer->lookahead == '{') {
@@ -141,6 +157,10 @@ bool tree_sitter_treecc_external_scanner_scan(void *payload, TSLexer *lexer,
   Scanner *scanner = (Scanner *)payload;
 
   if (scanner->delimiter_length == 0) {
+    skip_blob_prefix(lexer);
+    if (valid_symbols[CONTENTS_INCLUDE] && scan_contents_include(lexer)) {
+      return true;
+    }
     if (!valid_symbols[BLOB_START]) {
       return false;
     }

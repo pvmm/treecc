@@ -9,6 +9,7 @@ extern "C" {
 
 int treecc_initialize_lua_module_v1(void);
 void treecc_set_rule_v1(const char *rule);
+void treecc_set_source_path_v1(const char *path);
 int treecc_load_lua_handlers_v1(const TreeCCModuleRegistryV1 *registry,
                                 const char *script_path,
                                 const char *default_namespace);

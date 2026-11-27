@@ -36,12 +36,7 @@ sdcc::function print_from_c {
 	signature "void $sdcc::function(char* s);"
 	attributes [ .OPTIONAL ]
 	delimiters [ "---------------" ]
-	contents:
----------------
-void $sdcc::function(char* s) {
-	(void) s; // no warning
-}
----------------
+	contents: .INCLUDE("print_from_c.c")
 	append-to "stdio.c"                   // file to append code to.
 }
 

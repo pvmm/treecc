@@ -1,0 +1,9 @@
+project "Contents required test"
+
+ruleset {
+  "sdcc-4.2.0": sdcc
+}
+
+sdcc::function missing_contents {
+  append-to "out/missing_contents.c"
+}

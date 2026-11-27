@@ -72,3 +72,21 @@ compile main,
       (identifier))
     (argument
       (identifier))))
+
+==================
+Contents file include
+==================
+sdcc::function from_file {
+  contents: .INCLUDE("from_file.c")
+}
+---
+(source_file
+  (function_call
+    function: (identifier)
+    (argument
+      (identifier))
+    (argument
+      (context
+        (blob_property
+          (contents_include
+            path: (string)))))))

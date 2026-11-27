@@ -58,8 +58,28 @@
         {
           "type": "blob",
           "named": true
+        },
+        {
+          "type": "contents_include",
+          "named": true
         }
       ]
+    }
+  },
+  {
+    "type": "contents_include",
+    "named": true,
+    "fields": {
+      "path": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "string",
+            "named": true
+          }
+        ]
+      }
     }
   },
   {

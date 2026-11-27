@@ -538,6 +538,7 @@ bool dispatch_commands(TSNode node, const std::string &source,
       const std::string name = node_text(function, source);
       const auto handler = modules.find(name);
       if (handler != nullptr) {
+        treecc_set_source_path_v1(path.c_str());
         if (handler(node, source.data(),
                     static_cast<std::uint32_t>(source.size())) != 0) {
           std::cerr << path << ':' << ts_node_start_point(node).row + 1

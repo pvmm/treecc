@@ -5,6 +5,7 @@ module.exports = grammar({
     $._blob_start,
     $._blob_text,
     $._blob_end,
+    $._contents_include_token,
   ],
 
   extras: ($) => [/[ \t\r]+/, $.comment],
@@ -58,7 +59,11 @@ module.exports = grammar({
 
     parameter_declaration: ($) => seq($.identifier, $.identifier),
 
-    blob_property: ($) => seq("contents", optional(":"), $.blob),
+    blob_property: ($) =>
+      seq("contents", optional(":"), choice($.blob, $.contents_include)),
+
+    contents_include: ($) =>
+      seq($._contents_include_token, "(", field("path", $.string), ")"),
 
     blob: ($) => seq($._blob_start, optional($._blob_text), $._blob_end),
 
