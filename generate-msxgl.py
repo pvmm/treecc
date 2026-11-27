@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Rebuild the functions/ directory from MSXGL headers and sources.
+"""Rebuild the lib/sdcc/functions/ directory from MSXGL headers and sources.
 
 By default the script scans the headers listed in msxgl.h, plus msx-music.h,
 and reads the matching .c file for each header when one exists. It writes one
-file per function to functions/<header-stem>/<function-name>.c.
+file per function to lib/sdcc/functions/<header-stem>/<function-name>.c.
 
 Usage:
-    ./generate-functions.py [--src DIR] [--out DIR]
+    ./generate-msxgl.py [--src DIR] [--out DIR]
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent
 DEFAULT_SRC = Path("/home/pedro/projects/msx/msxgl/engine/src")
-DEFAULT_OUT = REPO_ROOT / "functions"
+DEFAULT_OUT = REPO_ROOT / "lib" / "sdcc" / "functions"
 MAIN_HEADER = "msxgl.h"
 EXTRA_HEADERS = ["msx-music.h"]
 
@@ -266,7 +266,7 @@ def main() -> None:
     parser.add_argument("--src", type=Path, default=DEFAULT_SRC,
                         help="directory containing msxgl.h and sources")
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT,
-                        help="directory to rebuild (default: ./functions)")
+                        help="directory to rebuild (default: ./lib/sdcc/functions)")
     args = parser.parse_args()
 
     written, missing_sources = build(args.src.resolve(), args.out.resolve())
