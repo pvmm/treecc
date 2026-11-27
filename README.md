@@ -24,14 +24,15 @@ a C program when each build step depends on information produced by another:
    source, and compile the C program again.
 
 This example illustrates the kind of multi-stage compiler and assembler
-coordination TreeCC aims to describe; executing build actions is not yet
-implemented.
+coordination TreeCC is designed to describe. The SDCC module currently handles
+the source generation, compilation, linking, and generated usage-header steps;
+later stages such as ROM conversion and emulator launch remain placeholders.
 
 TreeCC is an early-stage implementation. The current app parses its input,
-loads Lua handlers and dynamic modules, and collects some SDCC function
-metadata. Full language evaluation, variable and context semantics, and
-execution of build actions are not implemented yet; some compiler operations
-such as clean and ihx2rom are still placeholders.
+loads Lua handlers and dynamic modules, and executes selected action rules.
+Full language evaluation and variable semantics are still evolving, and
+commands such as `sdcc::clean`, `sdcc::ihx2rom`, `sdcc::openmsx`, and
+`sdcc::optional` only print a recognition message.
 
 ## Build and run
 
