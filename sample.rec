@@ -7,6 +7,7 @@ ruleset {
 }
 
 sdcc::target z80
+sdcc::link_opt [ --no-std-crt0 ]
 
 sdcc::function print_from_asm {
 	variable $name "Pedro"
